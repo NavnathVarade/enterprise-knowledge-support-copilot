@@ -1,0 +1,48 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+.env
+.env.local
+!.env.example
+!.env.production.example
+!.env.test
+
+*.log
+/tmp/
+
+.DS_Store
+
+# Terraform: real state, plans and environment values never go in git
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+plan.bin
+*.tfvars
+infrastructure/terraform/envs/*/backend.hcl
+crash.log
+dump.rdb
+
+# Frontend
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+
+# Development-only local object store and scratch data
+.local-data/
+
+
+# real test environment files
+.env.test
+.env.test.*
+!.env.test.example

@@ -1,0 +1,99 @@
+# Defaults are production-shaped but contain NO secrets and NO real hostnames/registry.
+# Required (the chart fails at render time if missing): image.repository, image.tag, ingress.host.
+nameOverride: ""
+
+image:
+  repository: ""        # e.g. ghcr.io/<owner>/ekc  (required)
+  tag: ""               # immutable CI tag or digest-pinned tag (required; "latest" is rejected)
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+environment: production  # production | staging
+
+# Secret objects are created OUTSIDE the chart (External Secrets / CSI / sealed secrets).
+secrets:
+  appSecretName: ekc-secrets          # keys = the API/worker secret env vars (see .env.production.example)
+  kafkaCaSecretName: ekc-kafka-ca     # key ca.crt
+  metricsTokenSecretName: ekc-metrics-token  # key metrics-token
+
+# Non-secret application settings, rendered into ConfigMap `<release>-config`.
+config:
+  REDIS_URL: rediss://redis.data.svc.cluster.local:6379/0
+  KAFKA_BOOTSTRAP_SERVERS: kafka-0.kafka.data.svc.cluster.local:9093,kafka-1.kafka.data.svc.cluster.local:9093,kafka-2.kafka.data.svc.cluster.local:9093
+  KAFKA_SECURITY_PROTOCOL: SASL_SSL
+  KAFKA_SASL_MECHANISM: SCRAM-SHA-512
+  KAFKA_SSL_CA_LOCATION: /etc/ekc/kafka-ca/ca.crt
+  DATABASE_POOL_SIZE: "20"
+  DATABASE_MAX_OVERFLOW: "10"
+  DATABASE_STATEMENT_TIMEOUT_MS: "15000"
+  LLM_PROVIDER: anthropic
+  EMBEDDING_PROVIDER: anthropic
+  EMBEDDING_DIMENSIONS: "1024"
+  SECURITY_JWT_ISSUER: ekc
+  SECURITY_JWT_AUDIENCE: ekc-api
+  OTEL_SERVICE_NAME: enterprise-knowledge-copilot
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4317
+  OBJECT_STORE_REGION: us-east-1
+  OBJECT_STORE_SSE: aws:kms
+  EKC_HEARTBEAT_FILE: /tmp/ekc-heartbeat
+  HARDENING_TRUSTED_PROXY_HOPS: "1"
+  HARDENING_DOCS_ENABLED: "false"
+
+api:
+  autoscaling: {minReplicas: 3, maxReplicas: 12, targetCPUUtilization: 70}
+  pdb: {minAvailable: 2}
+  resources:
+    requests: {cpu: 250m, memory: 512Mi, ephemeral-storage: 64Mi}
+    limits: {memory: 1Gi, ephemeral-storage: 256Mi}
+  terminationGracePeriodSeconds: 45
+
+web:   # static single-page app, its own image (apps/web)
+  image:
+    repository: ""      # e.g. ghcr.io/<owner>/ekc-web  (required)
+    tag: ""             # immutable CI tag or digest-pinned tag (required; "latest" is rejected)
+  replicas: 2
+  pdb: {maxUnavailable: 1}
+  resources:
+    requests: {cpu: 50m, memory: 32Mi, ephemeral-storage: 16Mi}
+    limits: {memory: 128Mi, ephemeral-storage: 64Mi}
+
+ingestionWorker:
+  replicas: 2
+  pdb: {maxUnavailable: 1}
+  resources:
+    requests: {cpu: 500m, memory: 1Gi, ephemeral-storage: 64Mi}
+    limits: {memory: 2Gi, ephemeral-storage: 256Mi}
+
+outboxRelay:   # singleton by design (Recreate); never raise replicas above 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 64Mi}
+    limits: {memory: 512Mi, ephemeral-storage: 256Mi}
+
+migrations:
+  enabled: true     # Helm pre-install/pre-upgrade hook Job: alembic upgrade head
+  topicsInit: true  # Helm hook Job: create Kafka topics
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ""            # required when enabled
+  tlsSecretName: ekc-api-tls
+  proxyBodySize: 25m
+
+networkPolicy:
+  enabled: true
+  ingressControllerNamespace: ingress-nginx
+  monitoringNamespace: monitoring
+  dataNamespace: data
+  observabilityNamespace: observability
+
+quota:
+  enabled: true
+  pods: "40"
+  requestsCpu: "12"
+  requestsMemory: 24Gi
+  limitsMemory: 40Gi
+
+serviceMonitor:
+  enabled: false     # needs Prometheus Operator CRDs
+  labels: {release: prometheus}

@@ -1,0 +1,32 @@
+# Prometheus for the Compose reference environment. Scrapes over the private network with the
+# bearer token the API requires (/metrics is a 404 without OTEL_METRICS_BEARER_TOKEN).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/rules/alerts.yaml
+
+scrape_configs:
+  - job_name: ekc-api
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/metrics_token
+    static_configs:
+      - targets: ["api:8000"]
+        labels: {service: ekc-api}
+  - job_name: ekc-ingestion-worker
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/metrics_token
+    static_configs:
+      - targets: ["ingestion-worker:9102"]
+        labels: {service: ekc-ingestion-worker}
+  - job_name: ekc-outbox-relay
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/metrics_token
+    static_configs:
+      - targets: ["outbox-relay:9102"]
+        labels: {service: ekc-outbox-relay}

@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+{{- $host := required "ingress.host is required when ingress.enabled" .Values.ingress.host }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ekc.fullname" . }}-api
+  labels: {{- include "ekc.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.proxyBodySize | quote }}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # /metrics is for in-cluster Prometheus only; never route it publicly.
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location = /metrics { return 404; }
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ $host | quote }}]
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          # Longest prefix wins: /api -> the API, everything else -> the web app.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: {name: {{ include "ekc.fullname" . }}-api, port: {name: http}}
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: {{ include "ekc.fullname" . }}-web, port: {name: http}}
+{{- end }}

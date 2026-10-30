@@ -1,0 +1,18 @@
+# Secret-scanning policy. The default ruleset applies; only the paths below are allow-listed,
+# each because it holds KNOWN, NON-SECRET values:
+#   .env.test                   test-only RSA keypair for the automated suite. Settings refuses
+#                               this key in staging/production (packages/security/known_keys.py)
+#                               and tests/unit/test_security_hardening_policy.py proves it.
+#   data/synthetic/generator.py synthetic fixture credentials documented as public;
+#                               scripts/seed_database.py refuses to run outside development/test.
+title = "enterprise-knowledge-copilot"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known, documented, non-secret fixtures"
+paths = [
+  '''^\.env\.test$''',
+  '''^data/synthetic/generator\.py$''',
+]

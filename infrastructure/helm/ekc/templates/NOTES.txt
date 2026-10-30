@@ -1,0 +1,6 @@
+ekc {{ .Chart.AppVersion }} installed as "{{ .Release.Name }}" in namespace {{ .Release.Namespace }}.
+
+Prerequisites (NOT created by this chart): Secrets {{ .Values.secrets.appSecretName }},
+{{ .Values.secrets.kafkaCaSecretName }}{{ if .Values.serviceMonitor.enabled }}, {{ .Values.secrets.metricsTokenSecretName }}{{ end }},
+and a namespace labelled pod-security.kubernetes.io/enforce=restricted.
+Check rollout:  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "ekc.fullname" . }}-api

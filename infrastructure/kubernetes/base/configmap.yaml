@@ -1,0 +1,36 @@
+# Non-secret configuration only. Every inter-service host is a cluster DNS name -- never
+# localhost (the app refuses to start otherwise). Secrets live in the out-of-band
+# `ekc-secrets` Secret (see ../examples/externalsecret.yaml). The *.data.svc hosts are
+# ASSUMED names for in-cluster / managed services: replace them in the overlay.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ekc-config
+data:
+  ENVIRONMENT: production
+  REDIS_URL: rediss://redis.data.svc.cluster.local:6379/0
+  KAFKA_BOOTSTRAP_SERVERS: kafka-0.kafka.data.svc.cluster.local:9093,kafka-1.kafka.data.svc.cluster.local:9093,kafka-2.kafka.data.svc.cluster.local:9093
+  KAFKA_SECURITY_PROTOCOL: SASL_SSL
+  KAFKA_SASL_MECHANISM: SCRAM-SHA-512
+  KAFKA_SSL_CA_LOCATION: /etc/ekc/kafka-ca/ca.crt
+  DATABASE_POOL_SIZE: "20"
+  DATABASE_MAX_OVERFLOW: "10"
+  DATABASE_STATEMENT_TIMEOUT_MS: "15000"
+  LLM_PROVIDER: anthropic
+  EMBEDDING_PROVIDER: anthropic
+  EMBEDDING_DIMENSIONS: "1024"
+  SECURITY_JWT_ISSUER: ekc
+  SECURITY_JWT_AUDIENCE: ekc-api
+  OTEL_SERVICE_NAME: enterprise-knowledge-copilot
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4317
+  OBJECT_STORE_REGION: us-east-1
+  OBJECT_STORE_SSE: aws:kms
+  EKC_HEARTBEAT_FILE: /tmp/ekc-heartbeat
+  # Number of reverse proxies in front of the API whose X-Forwarded-For entry is trusted for the
+  # per-IP login throttle. 1 = ingress-nginx directly on the internet-facing load balancer in
+  # "externalTrafficPolicy: Local" / proxy-protocol setups. If a cloud load balancer sits IN FRONT
+  # of ingress-nginx and ingress-nginx is configured with use-forwarded-headers=true, set 2.
+  # VERIFY against your ingress: 0 would make every user share the ingress pod's address, and
+  # too high a value lets clients choose their own address.
+  HARDENING_TRUSTED_PROXY_HOPS: "1"
+  HARDENING_DOCS_ENABLED: "false"

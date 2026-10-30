@@ -1,0 +1,12 @@
+{"id": "a001", "query": "How long do I have to request a refund?", "answerable": true, "expected_facts": ["30 days"], "relevant_docs": ["refund"]}
+{"id": "a002", "query": "How many weeks of parental leave do employees get?", "answerable": true, "expected_facts": ["16 weeks"], "relevant_docs": ["leave"]}
+{"id": "a003", "query": "How often must passwords be rotated?", "answerable": true, "expected_facts": ["90 days"], "relevant_docs": ["password"]}
+{"id": "a004", "query": "How long are audit logs retained?", "answerable": true, "expected_facts": ["7 years"], "relevant_docs": ["retention"]}
+{"id": "a005", "query": "What is the meal reimbursement limit per day?", "answerable": true, "expected_facts": ["60 dollars"], "relevant_docs": ["expense"]}
+{"id": "a006", "query": "What is the first response time for priority 1 tickets?", "answerable": true, "expected_facts": ["1 hour"], "relevant_docs": ["sla"]}
+{"id": "a007", "query": "Who approves vendor contracts above 50000 dollars?", "answerable": true, "expected_facts": ["finance director"], "relevant_docs": ["vendor"]}
+{"id": "a008", "query": "How quickly must the on-call engineer acknowledge a page?", "answerable": true, "expected_facts": ["10 minutes"], "relevant_docs": ["oncall"]}
+{"id": "a009", "query": "What is the CEO's favourite color?", "answerable": false}
+{"id": "a010", "query": "What is the policy on pet insurance reimbursement?", "answerable": false}
+{"id": "a011", "query": "What is the salary band for senior engineers?", "answerable": false}
+{"id": "a012", "query": "What was the company revenue in 1987?", "answerable": false}

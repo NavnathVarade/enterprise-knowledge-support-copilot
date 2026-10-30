@@ -1,0 +1,31 @@
+# Namespace guard rails. The LimitRange gives any container that forgets to declare resources a
+# sane default (and caps a single container), the ResourceQuota bounds what the namespace can ask
+# for. Sized for the production HPA ceiling (12 API pods) + workers + one Job, with ~25% headroom
+# for a surge during a rolling update. These are starting values, NOT measured capacity: revisit
+# them with real usage from the ekc_* metrics and the Phase 31 usage ledger.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ekc-defaults
+spec:
+  limits:
+    - type: Container
+      default: {memory: 512Mi, ephemeral-storage: 256Mi}
+      defaultRequest: {cpu: 100m, memory: 128Mi, ephemeral-storage: 32Mi}
+      max: {cpu: "4", memory: 4Gi, ephemeral-storage: 1Gi}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ekc-quota
+spec:
+  hard:
+    pods: "40"
+    requests.cpu: "12"
+    requests.memory: 24Gi
+    limits.memory: 40Gi
+    requests.ephemeral-storage: 8Gi
+    limits.ephemeral-storage: 16Gi
+    persistentvolumeclaims: "0"
+    services.loadbalancers: "0"
+    services.nodeports: "0"

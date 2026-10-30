@@ -1,0 +1,38 @@
+{{- if .Values.serviceMonitor.enabled }}
+{{- $n := printf "%s-api" (include "ekc.fullname" .) }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $n }}
+  labels:
+    {{- include "ekc.labels" . | nindent 4 }}
+    {{- toYaml .Values.serviceMonitor.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $n }}}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials: {name: {{ .Values.secrets.metricsTokenSecretName }}, key: metrics-token}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "ekc.fullname" . }}-workers
+  labels:
+    {{- include "ekc.labels" . | nindent 4 }}
+    {{- toYaml .Values.serviceMonitor.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/component: worker}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials: {name: {{ .Values.secrets.metricsTokenSecretName }}, key: metrics-token}
+{{- end }}

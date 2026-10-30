@@ -1,0 +1,5 @@
+bucket         = "REPLACE-with-your-terraform-state-bucket"
+key            = "ekc/production/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "REPLACE-with-your-terraform-lock-table"
+kms_key_id     = "alias/REPLACE-state-key"

@@ -1,0 +1,408 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege by default; jobs that need more (container-build) ask for it themselves.
+permissions:
+  contents: read
+
+# A newer push to the same ref cancels the older run (main is never cancelled mid-publish).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked environment (uv sync --frozen fails if uv.lock is stale)
+        run: uv sync --frozen
+      - name: Ruff (lint)
+        run: uv run --frozen ruff check .
+      - name: Ruff (format check)
+        run: uv run --frozen ruff format --check .
+      - name: Mypy (strict)
+        run: uv run --frozen mypy packages apps/api/app data scripts rag
+      - name: Architecture fitness (layers, import cycles)
+        run: uv run --frozen python scripts/architecture_check.py
+
+  unit-and-integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.0-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ekc_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # These use "localhost" deliberately: this is a CI runner talking to a GitHub
+      # Actions *service container* on the same job host, exactly analogous to the
+      # local test harness described in tests/README.md — not the application's
+      # deployed configuration, which forbids localhost outside development/test
+      # (see packages/config/settings.py). ENVIRONMENT=test exempts this from that
+      # check even if it were exercised here.
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/ekc_test
+      REDIS_URL: redis://localhost:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      SECURITY_JWT_ISSUER: ekc-ci
+      SECURITY_JWT_AUDIENCE: ekc-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked environment (uv sync --frozen fails if uv.lock is stale)
+        run: uv sync --frozen
+      - name: Generate ephemeral RSA keypair for JWT tests
+        run: |
+          uv run --frozen python -c "
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+          priv = key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.PKCS8, encryption_algorithm=serialization.NoEncryption())
+          pub = key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo)
+          open('/tmp/ci_priv.pem', 'wb').write(priv)
+          open('/tmp/ci_pub.pem', 'wb').write(pub)
+          "
+          {
+            echo "SECURITY_JWT_PRIVATE_KEY<<EOF"
+            cat /tmp/ci_priv.pem
+            echo "EOF"
+            echo "SECURITY_JWT_PUBLIC_KEY<<EOF"
+            cat /tmp/ci_pub.pem
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d ekc_test \
+            -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+      - name: Apply migrations (proves schema builds + is reversible)
+        run: |
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic downgrade base
+          uv run --frozen alembic upgrade head
+      - name: Install nginx (the gateway config is tested against the real binary)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nginx-light
+      - name: Run unit + integration tests
+        run: uv run --frozen pytest tests/unit tests/integration -v --cov=packages --cov=apps --cov-report=term-missing
+      - name: Smoke-test synthetic dataset seeding
+        run: uv run --frozen python -m scripts.seed_database
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Lint (type-aware ESLint, no raw-HTML rendering)
+        run: npm run lint
+      - name: Typecheck (strict)
+        run: npm run typecheck
+      - name: Unit and component tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Dependency vulnerabilities (production deps, high+ blocks)
+        run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    # Real Chromium -> real gateway/web nginx configs -> real API (see docs/testing/PHASE_42_E2E.md).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.0-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ekc_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # CI runner talking to service containers on the same host; ENVIRONMENT=test exempts it
+      # from the no-localhost production rule (same reasoning as unit-and-integration-tests).
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/ekc_test
+      REDIS_URL: redis://localhost:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      SECURITY_JWT_ISSUER: ekc-ci
+      SECURITY_JWT_AUDIENCE: ekc-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install the locked environment (uv sync --frozen fails if uv.lock is stale)
+        run: uv sync --frozen
+      - name: Install nginx and Chromium
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends nginx-light
+          uv run --frozen python -m playwright install --with-deps chromium
+      - name: Build the frontend
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Generate ephemeral RSA keypair for JWT
+        run: |
+          uv run --frozen python -c "
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+          priv = key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.PKCS8, encryption_algorithm=serialization.NoEncryption())
+          pub = key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo)
+          open('/tmp/ci_priv.pem', 'wb').write(priv)
+          open('/tmp/ci_pub.pem', 'wb').write(pub)
+          "
+          {
+            echo "SECURITY_JWT_PRIVATE_KEY<<EOF"
+            cat /tmp/ci_priv.pem
+            echo "EOF"
+            echo "SECURITY_JWT_PUBLIC_KEY<<EOF"
+            cat /tmp/ci_pub.pem
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+      - name: Prepare database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d ekc_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+          uv run --frozen alembic upgrade head
+      - name: Browser end-to-end tests
+        run: uv run --frozen pytest tests/e2e -v
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks scans history, not just the tip
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Dependency vulnerabilities (production pins; blocking)
+        run: |
+          uv export --frozen --no-dev --no-emit-project --no-hashes -o /tmp/production-requirements.txt
+          uvx pip-audit -r /tmp/production-requirements.txt --no-deps --disable-pip
+      - name: Static security analysis (bandit; medium+ blocks, config in pyproject.toml)
+        run: |
+          uvx --from "bandit[toml]" bandit -c pyproject.toml -r packages apps rag scripts data migrations
+      - name: Secret scanning (gitleaks, policy in .gitleaks.toml)
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz -C /usr/local/bin gitleaks
+          gitleaks detect --source . --redact --exit-code 1
+
+  deploy-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Lint Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infrastructure/docker/Dockerfile
+          config: .hadolint.yaml
+      - name: Lint web Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: apps/web/Dockerfile
+          config: .hadolint.yaml
+      - name: PrometheusRule is in sync with alerts.yaml
+        run: |
+          uv sync --frozen
+          uv run --frozen python -m scripts.gen_prometheusrule --check
+      - name: Install kustomize and kubeconform
+        run: |
+          curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz | tar xz -C /usr/local/bin kustomize
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
+      - name: Build and schema-validate overlays
+        run: |
+          for env in staging production; do
+            kustomize build infrastructure/kubernetes/overlays/$env > /tmp/$env.yaml
+            kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/$env.yaml
+          done
+      - name: Production-readiness review (fails on pod-security, probes, PDB, runbook or secret regressions)
+        run: uv run --frozen python scripts/readiness_review.py
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: Lint and render the Helm chart, schema-validate the output
+        run: |
+          set='--set image.repository=ghcr.io/ci/ekc --set image.tag=ci --set web.image.repository=ghcr.io/ci/ekc-web --set web.image.tag=ci --set ingress.host=ekc.example.invalid'
+          for env in staging production; do
+            helm lint infrastructure/helm/ekc -f infrastructure/helm/ekc/values-$env.yaml $set
+            helm template ekc infrastructure/helm/ekc -f infrastructure/helm/ekc/values-$env.yaml $set \
+              | kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0
+          done
+          # the chart must refuse to render without an immutable image tag
+          ! helm template ekc infrastructure/helm/ekc --set image.repository=x --set image.tag=latest --set web.image.repository=x --set web.image.tag=ci --set ingress.host=h
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.8.5
+      - name: Terraform format and validate (each environment, no backend)
+        run: |
+          tofu fmt -check -recursive infrastructure/terraform
+          for env in staging production; do
+            (cd infrastructure/terraform/envs/$env && tofu init -backend=false -input=false && tofu validate)
+          done
+      - name: Validate compose files (base and observability add-on)
+        env:
+          POSTGRES_PASSWORD: ci
+          MINIO_ROOT_PASSWORD: ci
+          ANALYTICS_RO_PASSWORD: ci
+          METRICS_TOKEN: ci
+          GRAFANA_ADMIN_PASSWORD: ci
+        run: |
+          docker compose -f infrastructure/docker/docker-compose.yml config -q
+          docker compose -f infrastructure/docker/docker-compose.yml \
+            -f infrastructure/docker/docker-compose.observability.yml config -q
+      - name: Validate Prometheus config and alert rules (promtool)
+        run: |
+          curl -sSL https://github.com/prometheus/prometheus/releases/download/v2.55.1/prometheus-2.55.1.linux-amd64.tar.gz \
+            | tar xz --strip-components=1 -C /usr/local/bin prometheus-2.55.1.linux-amd64/promtool
+          promtool check rules monitoring/prometheus/alerts.yaml
+          mkdir -p /tmp/prom/rules /tmp/prom/secrets
+          cp monitoring/prometheus/alerts.yaml /tmp/prom/rules/ && echo ci > /tmp/prom/secrets/metrics_token
+          sed "s#/etc/prometheus/rules/#/tmp/prom/rules/#; s#/run/secrets/#/tmp/prom/secrets/#" \
+            infrastructure/docker/prometheus/prometheus.yml > /tmp/prom/prometheus.yml
+          promtool check config /tmp/prom/prometheus.yml
+
+  container-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      web_digest: ${{ steps.build_web.outputs.digest }}
+    needs: [lint-and-typecheck, unit-and-integration-tests, web, e2e, security-scan, deploy-config]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR (main only)
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build image (push on main) with SBOM and provenance
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          load: ${{ github.ref != 'refs/heads/main' }}
+          sbom: true
+          provenance: mode=max
+          tags: ghcr.io/${{ github.repository }}/ekc:${{ github.sha }}
+      - name: Build web image (push on main) with SBOM and provenance
+        id: build_web
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          file: apps/web/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          load: ${{ github.ref != 'refs/heads/main' }}
+          sbom: true
+          provenance: mode=max
+          tags: ghcr.io/${{ github.repository }}/ekc-web:${{ github.sha }}
+      - name: Install cosign
+        if: github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v3.7.0
+      - name: Sign the image by digest (keyless, GitHub OIDC identity)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cosign sign --yes "ghcr.io/${{ github.repository }}/ekc@${{ steps.build.outputs.digest }}"
+          cosign sign --yes "ghcr.io/${{ github.repository }}/ekc-web@${{ steps.build_web.outputs.digest }}"
+      - name: Trivy image scan (fails on fixable HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/ekc:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Trivy web image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/ekc-web:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+# STATUS: this workflow has NOT been executed on GitHub in the build environment. The pieces
+# were run individually in the sandbox where possible: ruff, mypy, pytest, hadolint,
+# kustomize + kubeconform + kube-score, `docker compose config` (both files), promtool, the nginx gateway
+# tests,.
+# The `tofu validate` step has never run in CI (only `tofu fmt -check` ran locally, no providers
+# were reachable). The Helm lint/template step above has NEVER been run (no helm binary in the build sandbox).
+# Deployment lives in deploy.yml (never run). NOT YET IMPLEMENTED: contract tests.
+# pip-audit/bandit/gitleaks ran locally against this tree (see
+# docs/security/PHASE_32_SECURITY_HARDENING.md); the GitHub job itself has not run.

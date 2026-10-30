@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target: {kind: ConfigMap, name: ekc-config}
+    patch: |-
+      - op: replace
+        path: /data/ENVIRONMENT
+        value: staging
+  - target: {kind: HorizontalPodAutoscaler, name: ekc-api}
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 4
+  - target: {kind: PodDisruptionBudget, name: ekc-api}
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 1

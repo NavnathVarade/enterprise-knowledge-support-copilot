@@ -1,0 +1,86 @@
+{{- $n := printf "%s-web" (include "ekc.fullname" .) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $n }}
+  labels:
+    {{- include "ekc.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ $n }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $n }}}
+  template:
+    metadata:
+      labels:
+        {{- include "ekc.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ $n }}
+        app.kubernetes.io/component: web
+    spec:
+      {{- include "ekc.podSecurity" . | nindent 6 }}
+      terminationGracePeriodSeconds: 30
+      {{- include "ekc.antiAffinity" (dict "name" $n) | nindent 6 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app.kubernetes.io/name: {{ $n }}}
+      containers:
+        - name: web
+          image: {{ include "ekc.webImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - {name: http, containerPort: 8080}
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+          {{- include "ekc.containerSecurity" . | nindent 10 }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec: {command: ["sleep", "5"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $n }}
+  labels:
+    {{- include "ekc.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ $n }}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: {{ $n }}}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $n }}
+  labels: {{- include "ekc.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.web.pdb.maxUnavailable }}
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $n }}}

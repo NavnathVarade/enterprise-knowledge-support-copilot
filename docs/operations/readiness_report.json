@@ -1,0 +1,97 @@
+[
+  {
+    "name": "k8s[staging] pods are non-root, read-only rootfs, no privilege escalation, all caps dropped",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[staging] every container has requests and a memory limit",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[staging] images are pinned (tag or digest, never :latest)",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[staging] every Deployment container has liveness and readiness probes",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[staging] every Deployment is covered by a PodDisruptionBudget",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[staging] no Secret object with data is committed in the manifests",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[staging] default-deny NetworkPolicy (ingress+egress)",
+    "status": "PASS",
+    "detail": "present"
+  },
+  {
+    "name": "k8s[production] pods are non-root, read-only rootfs, no privilege escalation, all caps dropped",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[production] every container has requests and a memory limit",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[production] images are pinned (tag or digest, never :latest)",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[production] every Deployment container has liveness and readiness probes",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[production] every Deployment is covered by a PodDisruptionBudget",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[production] no Secret object with data is committed in the manifests",
+    "status": "PASS",
+    "detail": "4 deployments inspected"
+  },
+  {
+    "name": "k8s[production] default-deny NetworkPolicy (ingress+egress)",
+    "status": "PASS",
+    "detail": "present"
+  },
+  {
+    "name": "docker: non-root final user and pinned base images",
+    "status": "PASS",
+    "detail": "2 Dockerfiles"
+  },
+  {
+    "name": "migrations: single head, every revision has a real downgrade",
+    "status": "PASS",
+    "detail": "7 revisions, head 0007_usage_ledger"
+  },
+  {
+    "name": "observability: every alert links to a runbook heading that exists",
+    "status": "PASS",
+    "detail": "13 alerts"
+  },
+  {
+    "name": "secrets: ignore rules present, no .env file in the tree",
+    "status": "PASS",
+    "detail": "gitleaks is a separate CI gate"
+  },
+  {
+    "name": "open risks: unmeasured / never-executed markers across docs",
+    "status": "SKIPPED",
+    "detail": "78 markers; most in docs/performance/PHASE_33_PERFORMANCE.md (7), docs/disaster-recovery/PHASE_40_DISASTER_RECOVERY.md (7), docs/operations/PHASE_43_PRODUCTION_READINESS.md (6), docs/deployment/PHASE_30_DEPLOYMENT_DESIGN.md (6), docs/architecture/PHASE_0_ARCHITECTURE.md (6)"
+  }
+]

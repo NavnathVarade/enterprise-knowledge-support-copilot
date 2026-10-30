@@ -1,0 +1,67 @@
+{{- $ing := printf "%s-ingestion-worker" (include "ekc.fullname" .) }}
+{{- $rel := printf "%s-outbox-relay" (include "ekc.fullname" .) }}
+{{- range $w := list (dict "name" $ing "cmd" "ingestion" "replicas" .Values.ingestionWorker.replicas "res" .Values.ingestionWorker.resources "strategy" "RollingUpdate") (dict "name" $rel "cmd" "outbox-relay" "replicas" 1 "res" .Values.outboxRelay.resources "strategy" "Recreate") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $w.name }}
+  labels:
+    {{- include "ekc.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $w.name }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ $w.replicas }}
+  revisionHistoryLimit: 5
+  {{- if eq $w.strategy "Recreate" }}
+  strategy: {type: Recreate}
+  {{- else }}
+  strategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 1}}
+  {{- end }}
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $w.name }}}
+  template:
+    metadata:
+      labels:
+        {{- include "ekc.labels" $ | nindent 8 }}
+        app.kubernetes.io/name: {{ $w.name }}
+        app.kubernetes.io/component: worker
+    spec:
+      {{- include "ekc.podSecurity" $ | nindent 6 }}
+      terminationGracePeriodSeconds: 60
+      {{- include "ekc.antiAffinity" (dict "name" $w.name) | nindent 6 }}
+      containers:
+        - name: worker
+          image: {{ include "ekc.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["python", "-m", "packages.workers", {{ $w.cmd | quote }}]
+          ports:
+            - {name: metrics, containerPort: 9102}
+          {{- include "ekc.envFrom" $ | nindent 10 }}
+          resources: {{- toYaml $w.res | nindent 12 }}
+          {{- include "ekc.containerSecurity" $ | nindent 10 }}
+          {{- include "ekc.workerProbes" $ | nindent 10 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: kafka-ca, mountPath: /etc/ekc/kafka-ca, readOnly: true}
+      volumes: {{- include "ekc.volumes" $ | nindent 8 }}
+---
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $ing }}
+  labels: {{- include "ekc.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.ingestionWorker.pdb.maxUnavailable }}
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $ing }}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $rel }}
+  labels: {{- include "ekc.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $rel }}}

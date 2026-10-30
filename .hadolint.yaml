@@ -1,0 +1,4 @@
+# DL3008 (pin apt package versions) is intentionally not enforced: Debian removes superseded
+# versions from the mirror, so exact apt pins break rebuilds. Reproducibility comes from the
+# base-image digest + pip constraints instead. (Inline `# hadolint ignore` also marks the sites.)
+failure-threshold: warning

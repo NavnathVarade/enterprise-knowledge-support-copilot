@@ -1,0 +1,80 @@
+# Observability add-on (Prometheus + Grafana). Use together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+#
+# Prometheus scrapes the API and workers on the private network with the bearer token the
+# application requires. Grafana is provisioned with the Prometheus data source and the
+# ekc-overview dashboard (monitoring/grafana). Both listen on loopback only by default.
+#
+# Not run in the build sandbox (images unreachable); prometheus.yml and the alert rules were
+# validated with promtool 2.55.1, Grafana provisioning files were reviewed, not loaded.
+
+x-logging: &default-logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle=false
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../monitoring/prometheus/alerts.yaml:/etc/prometheus/rules/alerts.yaml:ro
+      - prometheus-data:/prometheus
+    secrets: [metrics_token]
+    ports:
+      - "${OBSERVABILITY_BIND:-127.0.0.1}:9090:9090"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 1g, pids: 512}
+    logging: *default-logging
+    # app-net for the published port and the api/worker targets; metrics-net for the relay.
+    networks: [app-net, metrics-net]
+    depends_on:
+      api: {condition: service_healthy}
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../monitoring/grafana/ekc-overview.json:/var/lib/grafana/dashboards/ekc-overview.json:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${OBSERVABILITY_BIND:-127.0.0.1}:3000:3000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512m, pids: 512}
+    logging: *default-logging
+    networks: [app-net]
+    depends_on: [prometheus]
+
+secrets:
+  # Same value the API requires (OTEL_METRICS_BEARER_TOKEN); injected from the environment, so
+  # it is never written into a file in the repository.
+  metrics_token:
+    environment: METRICS_TOKEN
+
+networks:
+  app-net:
+  metrics-net:
+
+volumes:
+  prometheus-data:
+  grafana-data:

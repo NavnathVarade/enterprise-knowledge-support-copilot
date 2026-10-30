@@ -1,0 +1,271 @@
+{
+  "generated_at": "2026-10-20T05:52:25.263547+00:00",
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logical_cores": 2,
+    "memory_gb": 7.8,
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "note": "Client, Postgres and Redis share this one machine; numbers are not a production-hardware prediction.",
+    "note_server": "uvicorn 2 workers, bcrypt in worker thread, same machine as client/Postgres/Redis (only 2 cores shared by everything)"
+  },
+  "config": {
+    "base_url_host_only": "local",
+    "duration_seconds_per_point": 10.0,
+    "concurrency_levels": [
+      1,
+      8,
+      32
+    ],
+    "closed_loop": true,
+    "server": "uvicorn 2 workers, bcrypt in worker thread, same machine as client/Postgres/Redis (only 2 cores shared by everything)"
+  },
+  "results": {
+    "health_live": [
+      {
+        "concurrency": 1,
+        "requests": 8048,
+        "success_2xx": 8048,
+        "errors": 0,
+        "status_counts": {
+          "200": 8048
+        },
+        "throughput_rps": 811.6,
+        "latency": {
+          "n": 8048.0,
+          "p50_ms": 1.16,
+          "p95_ms": 1.66,
+          "p99_ms": 2.44,
+          "mean_ms": 1.23,
+          "max_ms": 63.89
+        }
+      },
+      {
+        "concurrency": 8,
+        "requests": 8999,
+        "success_2xx": 8999,
+        "errors": 0,
+        "status_counts": {
+          "200": 8999
+        },
+        "throughput_rps": 905.7,
+        "latency": {
+          "n": 8999.0,
+          "p50_ms": 4.68,
+          "p95_ms": 23.3,
+          "p99_ms": 106.78,
+          "mean_ms": 8.83,
+          "max_ms": 318.44
+        }
+      },
+      {
+        "concurrency": 32,
+        "requests": 7599,
+        "success_2xx": 7599,
+        "errors": 0,
+        "status_counts": {
+          "200": 7599
+        },
+        "throughput_rps": 762.3,
+        "latency": {
+          "n": 7599.0,
+          "p50_ms": 29.72,
+          "p95_ms": 115.58,
+          "p99_ms": 181.45,
+          "mean_ms": 41.91,
+          "max_ms": 369.27
+        }
+      }
+    ],
+    "health_ready": [
+      {
+        "concurrency": 1,
+        "requests": 3268,
+        "success_2xx": 3268,
+        "errors": 0,
+        "status_counts": {
+          "200": 3268
+        },
+        "throughput_rps": 328.6,
+        "latency": {
+          "n": 3268.0,
+          "p50_ms": 2.83,
+          "p95_ms": 4.56,
+          "p99_ms": 6.18,
+          "mean_ms": 3.04,
+          "max_ms": 13.11
+        }
+      },
+      {
+        "concurrency": 8,
+        "requests": 5483,
+        "success_2xx": 5483,
+        "errors": 0,
+        "status_counts": {
+          "200": 5483
+        },
+        "throughput_rps": 553.9,
+        "latency": {
+          "n": 5483.0,
+          "p50_ms": 13.35,
+          "p95_ms": 25.39,
+          "p99_ms": 33.7,
+          "mean_ms": 14.44,
+          "max_ms": 76.61
+        }
+      },
+      {
+        "concurrency": 32,
+        "requests": 2854,
+        "success_2xx": 2854,
+        "errors": 0,
+        "status_counts": {
+          "200": 2854
+        },
+        "throughput_rps": 284.2,
+        "latency": {
+          "n": 2854.0,
+          "p50_ms": 76.49,
+          "p95_ms": 325.77,
+          "p99_ms": 525.31,
+          "mean_ms": 112.02,
+          "max_ms": 1080.71
+        }
+      }
+    ],
+    "documents_list_authenticated": [
+      {
+        "concurrency": 1,
+        "requests": 998,
+        "success_2xx": 998,
+        "errors": 0,
+        "status_counts": {
+          "200": 998
+        },
+        "throughput_rps": 101.0,
+        "latency": {
+          "n": 998.0,
+          "p50_ms": 9.44,
+          "p95_ms": 13.12,
+          "p99_ms": 16.99,
+          "mean_ms": 9.9,
+          "max_ms": 128.2
+        }
+      },
+      {
+        "concurrency": 8,
+        "requests": 2100,
+        "success_2xx": 2100,
+        "errors": 0,
+        "status_counts": {
+          "200": 2100
+        },
+        "throughput_rps": 210.7,
+        "latency": {
+          "n": 2100.0,
+          "p50_ms": 41.52,
+          "p95_ms": 76.31,
+          "p99_ms": 140.21,
+          "mean_ms": 37.85,
+          "max_ms": 227.24
+        }
+      },
+      {
+        "concurrency": 32,
+        "requests": 2016,
+        "success_2xx": 2016,
+        "errors": 0,
+        "status_counts": {
+          "200": 2016
+        },
+        "throughput_rps": 201.2,
+        "latency": {
+          "n": 2016.0,
+          "p50_ms": 95.51,
+          "p95_ms": 471.41,
+          "p99_ms": 826.14,
+          "mean_ms": 157.93,
+          "max_ms": 1187.91
+        }
+      }
+    ],
+    "login_bcrypt": [
+      {
+        "concurrency": 1,
+        "requests": 26,
+        "success_2xx": 26,
+        "errors": 0,
+        "status_counts": {
+          "200": 26
+        },
+        "throughput_rps": 2.9,
+        "latency": {
+          "n": 26.0,
+          "p50_ms": 338.99,
+          "p95_ms": 362.17,
+          "p99_ms": 394.75,
+          "mean_ms": 342.99,
+          "max_ms": 394.75
+        }
+      },
+      {
+        "concurrency": 8,
+        "requests": 55,
+        "success_2xx": 55,
+        "errors": 0,
+        "status_counts": {
+          "200": 55
+        },
+        "throughput_rps": 5.7,
+        "latency": {
+          "n": 55.0,
+          "p50_ms": 1351.42,
+          "p95_ms": 1667.51,
+          "p99_ms": 1803.42,
+          "mean_ms": 1364.79,
+          "max_ms": 1804.47
+        }
+      },
+      {
+        "concurrency": 32,
+        "requests": 75,
+        "success_2xx": 74,
+        "errors": 1,
+        "status_counts": {
+          "200": 74,
+          "500": 1
+        },
+        "throughput_rps": 5.9,
+        "latency": {
+          "n": 75.0,
+          "p50_ms": 4484.58,
+          "p95_ms": 8651.99,
+          "p99_ms": 10316.84,
+          "mean_ms": 4746.16,
+          "max_ms": 10485.61
+        }
+      }
+    ],
+    "health_live_while_4_clients_log_in": [
+      {
+        "concurrency": 4,
+        "requests": 4383,
+        "success_2xx": 4383,
+        "errors": 0,
+        "status_counts": {
+          "200": 4383
+        },
+        "throughput_rps": 439.3,
+        "latency": {
+          "n": 4383.0,
+          "p50_ms": 6.35,
+          "p95_ms": 18.47,
+          "p99_ms": 102.32,
+          "mean_ms": 9.09,
+          "max_ms": 174.39
+        }
+      }
+    ]
+  },
+  "median_of_p50_ms_all_points": 29.72
+}

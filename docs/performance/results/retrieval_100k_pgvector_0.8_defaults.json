@@ -1,0 +1,114 @@
+{
+  "generated_at": "2026-10-20T05:54:13.671206+00:00",
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logical_cores": 2,
+    "memory_gb": 7.8,
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "note": "Client, Postgres and Redis share this one machine; numbers are not a production-hardware prediction.",
+    "postgres": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "pgvector": "0.8.0",
+    "shared_buffers": "128MB"
+  },
+  "dataset": {
+    "synthetic": true,
+    "vectors": "Gaussian mixture, 200 clusters, 1024 dims (not real embeddings)",
+    "text": "Zipf over a 3000-word vocabulary, 70 words/chunk",
+    "total_chunks": 100000,
+    "tenants": 10,
+    "querying_tenant_chunks": 10000,
+    "restricted_document_fraction": 0.2,
+    "load_seconds": NaN,
+    "hnsw_index_mb": 819.2,
+    "chunks_plus_embeddings_total_mb": 1567.3
+  },
+  "config": {
+    "k": 50,
+    "queries": 100,
+    "recall_queries": 30,
+    "hnsw_index": "pgvector defaults (m=16, ef_construction=64)",
+    "single_client_sequential": true,
+    "session_settings": []
+  },
+  "results": {
+    "vector_leg_by_ef_search": {
+      "40": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 53.89,
+          "p95_ms": 64.51,
+          "p99_ms": 71.28,
+          "mean_ms": 54.88,
+          "max_ms": 74.69
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      },
+      "100": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 57.58,
+          "p95_ms": 68.69,
+          "p99_ms": 73.13,
+          "mean_ms": 58.2,
+          "max_ms": 73.85
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      },
+      "200": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 53.66,
+          "p95_ms": 64.0,
+          "p99_ms": 71.43,
+          "mean_ms": 55.01,
+          "max_ms": 106.28
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      },
+      "400": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 57.47,
+          "p95_ms": 69.69,
+          "p99_ms": 74.33,
+          "mean_ms": 58.53,
+          "max_ms": 82.32
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      }
+    },
+    "lexical_leg": {
+      "n": 100.0,
+      "p50_ms": 47.15,
+      "p95_ms": 67.6,
+      "p99_ms": 71.78,
+      "mean_ms": 47.61,
+      "max_ms": 71.99
+    },
+    "hybrid_authorized": {
+      "ef_search": "database default (40)",
+      "n": 100.0,
+      "p50_ms": 107.59,
+      "p95_ms": 129.2,
+      "p99_ms": 145.74,
+      "mean_ms": 109.84,
+      "max_ms": 163.69
+    },
+    "plans": {
+      "vector_acl_filtered": "Limit (actual time=27.594..30.980 rows=10 loops=1)\n  Buffers: shared hit=43743\n  ->  Nested Loop Semi Join (actual time=27.592..30.976 rows=10 loops=1)\n        Buffers: shared hit=43743\n        ->  Nested Loop (actual time=27.559..30.845 rows=12 loops=1)\n              Buffers: shared hit=43663\n              ->  Nested Loop (actual time=27.549..30.798 rows=12 loops=1)\n                    Buffers: shared hit=43638\n                    ->  Nested Loop (actual time=27.537..30.746 rows=12 loops=1)\n                          Buffers: shared hit=43602\n                          ->  Gather Merge (actual time=27.522..30.677 rows=12 loops=1)\n                                Workers Planned: 1\n                                Workers Launched: 1\n                                Buffers: shared hit=43554\n                                ->  Sort (actual time=25.150..25.227 rows=460 loops=2)\n                                      Sort Key: ((e.embedding <=> '<query vector>'::vector))\n                                      Sort Method: quicksort  Memory: 591kB\n                                      Buffers: shared hit=43554\n                                      Worker 0:  Sort Method: quicksort  Memory: 497kB\n                                      ->  Parallel Bitmap Heap Scan on embeddings e (actual time=0.235..23.401 rows=5000 loops=2)\n                                            Recheck Cond: (tenant_id = 'bee6894f-e603-4076-8b22-ffba30e83a76'::uuid)\n                                            Heap Blocks: exact=93\n                                            Buffers: shared hit=43546\n                                            ->  Bitmap Index Scan on ix_embeddings_tenant_id (actual time=0.319..0.319 rows=10000 loops=1)\n                                                  Index Cond: (tenant_id = 'bee6894f-e603-4076-8b22-ffba30e83a76'::uuid)\n                                                  Buffers: shared hit=9\n                          ->  Index Scan using pk_document_chunks on document_chunks c (actual time=0.005..0.005 rows=1 loops=12)\n                                Index Cond: (id = e.chunk_id)\n                                Buffers: shared hit=48\n                    ->  Index Scan using pk_document_versions on document_versions v (actual time=0.004..0.004 rows=1 loops=12)\n                          Index Cond: (id = c.document_version_id)\n                          Filter: (((status)::text <> 'draft'::text) AND (effective_from <= now()))\n                          Buffers: shared hit=36\n              ->  Index Only Scan using pk_documents on documents d (actual time=0.003..0.003 rows=1 loops=12)\n                    Index Cond: (id = v.document_id)\n                    Heap Fetches: 0\n                    Buffers: shared hit=25\n        ->  Index Scan using ix_document_acl_document_id on document_acl a (actual time=0.003..0.003 rows=1 loops=12)\n              Index Cond: (document_id = d.id)\n              Filter: ((tenant_id = 'bee6894f-e603-4076-8b22-ffba30e83a76'::uuid) AND (((visibility)::text = 'public_within_tenant'::text) OR (((visibility)::text = 'department_only'::text) AND ((department)::text = 'engineering'::text))))\n              Rows Removed by Filter: 0\n              Buffers: shared hit=36\nPlanning:\n  Buffers: shared hit=67\nPlanning Time: 1.326 ms\nExecution Time: 31.070 ms"
+    }
+  }
+}

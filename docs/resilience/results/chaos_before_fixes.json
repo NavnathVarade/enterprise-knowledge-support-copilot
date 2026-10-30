@@ -1,0 +1,559 @@
+{
+  "generated_at": "2026-10-20T06:07:05.495255+00:00",
+  "environment": "disposable sandbox: real Postgres 16, Redis, uvicorn (1 worker), 4 req/s per endpoint",
+  "scenarios": {
+    "postgres_stop_10s": {
+      "phases": {
+        "before_fault": {
+          "seconds": 5.9,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.5,
+            "max_ms": 114.4
+          },
+          "ready": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 5.7,
+            "max_ms": 58.8
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 11.3,
+            "max_ms": 105.6
+          }
+        },
+        "during_fault": {
+          "seconds": 10.3,
+          "live": {
+            "requests": 40,
+            "status": {
+              "200": 40
+            },
+            "p50_ms": 3.2,
+            "max_ms": 7.2
+          },
+          "ready": {
+            "requests": 40,
+            "status": {
+              "503": 40
+            },
+            "p50_ms": 7.5,
+            "max_ms": 14.0
+          },
+          "documents": {
+            "requests": 40,
+            "status": {
+              "500": 40
+            },
+            "p50_ms": 14.1,
+            "max_ms": 72.5
+          }
+        },
+        "after_fault": {
+          "seconds": 27.3,
+          "live": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 2.7,
+            "max_ms": 11.4
+          },
+          "ready": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 11.3,
+            "max_ms": 29.8
+          },
+          "documents": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 12.0,
+            "max_ms": 33.8
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 2.3,
+        "ready": 2.3,
+        "documents": 2.3
+      },
+      "fault_seconds": 10
+    },
+    "redis_stop_10s": {
+      "phases": {
+        "before_fault": {
+          "seconds": 6.0,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.2,
+            "max_ms": 84.0
+          },
+          "ready": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 4.9,
+            "max_ms": 50.3
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 10.9,
+            "max_ms": 117.4
+          }
+        },
+        "during_fault": {
+          "seconds": 10.0,
+          "live": {
+            "requests": 40,
+            "status": {
+              "200": 40
+            },
+            "p50_ms": 2.3,
+            "max_ms": 4.1
+          },
+          "ready": {
+            "requests": 40,
+            "status": {
+              "503": 40
+            },
+            "p50_ms": 4.9,
+            "max_ms": 8.2
+          },
+          "documents": {
+            "requests": 40,
+            "status": {
+              "200": 40
+            },
+            "p50_ms": 10.7,
+            "max_ms": 17.7
+          }
+        },
+        "after_fault": {
+          "seconds": 25.0,
+          "live": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 2.3,
+            "max_ms": 4.6
+          },
+          "ready": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 5.2,
+            "max_ms": 13.0
+          },
+          "documents": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 11.3,
+            "max_ms": 21.9
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 0.1,
+        "ready": 0.1,
+        "documents": 0.2
+      },
+      "fault_seconds": 10
+    },
+    "db_table_lock_20s": {
+      "phases": {
+        "before_fault": {
+          "seconds": 6.0,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.4,
+            "max_ms": 89.8
+          },
+          "ready": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 5.4,
+            "max_ms": 71.1
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 12.9,
+            "max_ms": 115.0
+          }
+        },
+        "during_fault": {
+          "seconds": 21.0,
+          "live": {
+            "requests": 84,
+            "status": {
+              "200": 84
+            },
+            "p50_ms": 2.3,
+            "max_ms": 4.2
+          },
+          "ready": {
+            "requests": 84,
+            "status": {
+              "200": 84
+            },
+            "p50_ms": 5.3,
+            "max_ms": 19.5
+          },
+          "documents": {
+            "requests": 7,
+            "status": {
+              "500": 1,
+              "ReadError": 1,
+              "200": 5
+            },
+            "p50_ms": 16.9,
+            "max_ms": 15035.9
+          }
+        },
+        "after_fault": {
+          "seconds": 25.0,
+          "live": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 2.4,
+            "max_ms": 6.6
+          },
+          "ready": {
+            "requests": 99,
+            "status": {
+              "200": 99
+            },
+            "p50_ms": 5.1,
+            "max_ms": 15.3
+          },
+          "documents": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 11.6,
+            "max_ms": 18.3
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 0.1,
+        "ready": 0.2,
+        "documents": 0.1
+      },
+      "fault_seconds": 20
+    },
+    "api_sigterm_restart": {
+      "phases": {
+        "before_fault": {
+          "seconds": 6.0,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.2,
+            "max_ms": 84.5
+          },
+          "ready": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 5.3,
+            "max_ms": 53.4
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 12.6,
+            "max_ms": 122.3
+          }
+        },
+        "during_fault": {
+          "seconds": 3.0,
+          "live": {
+            "requests": 12,
+            "status": {
+              "200": 1,
+              "ConnectError": 11
+            },
+            "p50_ms": 1.2,
+            "max_ms": 2.5
+          },
+          "ready": {
+            "requests": 12,
+            "status": {
+              "ConnectError": 12
+            },
+            "p50_ms": 1.1,
+            "max_ms": 1.5
+          },
+          "documents": {
+            "requests": 12,
+            "status": {
+              "ConnectError": 12
+            },
+            "p50_ms": 1.1,
+            "max_ms": 1.5
+          }
+        },
+        "after_fault": {
+          "seconds": 25.0,
+          "live": {
+            "requests": 100,
+            "status": {
+              "ConnectError": 5,
+              "200": 95
+            },
+            "p50_ms": 2.3,
+            "max_ms": 20.1
+          },
+          "ready": {
+            "requests": 100,
+            "status": {
+              "ConnectError": 5,
+              "200": 95
+            },
+            "p50_ms": 5.2,
+            "max_ms": 76.0
+          },
+          "documents": {
+            "requests": 100,
+            "status": {
+              "ConnectError": 5,
+              "200": 95
+            },
+            "p50_ms": 11.7,
+            "max_ms": 109.3
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 1.3,
+        "ready": 1.4,
+        "documents": 1.4
+      },
+      "fault_seconds": 3
+    },
+    "api_sigkill_restart": {
+      "phases": {
+        "before_fault": {
+          "seconds": 6.0,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.3,
+            "max_ms": 87.4
+          },
+          "ready": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 5.1,
+            "max_ms": 56.6
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 13.2,
+            "max_ms": 111.0
+          }
+        },
+        "during_fault": {
+          "seconds": 3.0,
+          "live": {
+            "requests": 12,
+            "status": {
+              "ConnectError": 12
+            },
+            "p50_ms": 1.1,
+            "max_ms": 1.3
+          },
+          "ready": {
+            "requests": 12,
+            "status": {
+              "ConnectError": 12
+            },
+            "p50_ms": 1.0,
+            "max_ms": 1.2
+          },
+          "documents": {
+            "requests": 12,
+            "status": {
+              "ConnectError": 12
+            },
+            "p50_ms": 1.1,
+            "max_ms": 1.7
+          }
+        },
+        "after_fault": {
+          "seconds": 25.0,
+          "live": {
+            "requests": 100,
+            "status": {
+              "ConnectError": 5,
+              "200": 95
+            },
+            "p50_ms": 2.4,
+            "max_ms": 14.7
+          },
+          "ready": {
+            "requests": 100,
+            "status": {
+              "ConnectError": 5,
+              "200": 95
+            },
+            "p50_ms": 5.2,
+            "max_ms": 67.7
+          },
+          "documents": {
+            "requests": 100,
+            "status": {
+              "ConnectError": 5,
+              "200": 95
+            },
+            "p50_ms": 11.4,
+            "max_ms": 128.0
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 1.3,
+        "ready": 1.4,
+        "documents": 1.4
+      },
+      "fault_seconds": 3
+    },
+    "db_blackhole_20s": {
+      "phases": {
+        "before_fault": {
+          "seconds": 6.0,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.3,
+            "max_ms": 87.1
+          },
+          "ready": {
+            "requests": 1,
+            "status": {
+              "ReadTimeout": 1
+            },
+            "p50_ms": 45044.4,
+            "max_ms": 45044.4
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "LocalProtocolError": 24
+            },
+            "p50_ms": 1.5,
+            "max_ms": 4.8
+          }
+        },
+        "during_fault": {
+          "seconds": 20.0,
+          "live": {
+            "requests": 80,
+            "status": {
+              "200": 80
+            },
+            "p50_ms": 2.3,
+            "max_ms": 4.2
+          },
+          "ready": {
+            "requests": 0,
+            "status": {},
+            "p50_ms": null,
+            "max_ms": null
+          },
+          "documents": {
+            "requests": 80,
+            "status": {
+              "LocalProtocolError": 80
+            },
+            "p50_ms": 1.6,
+            "max_ms": 7.4
+          }
+        },
+        "after_fault": {
+          "seconds": 25.0,
+          "live": {
+            "requests": 100,
+            "status": {
+              "200": 100
+            },
+            "p50_ms": 2.3,
+            "max_ms": 14.3
+          },
+          "ready": {
+            "requests": 1,
+            "status": {
+              "ReadTimeout": 1
+            },
+            "p50_ms": 45042.3,
+            "max_ms": 45042.3
+          },
+          "documents": {
+            "requests": 99,
+            "status": {
+              "LocalProtocolError": 99
+            },
+            "p50_ms": 1.5,
+            "max_ms": 9.5
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 0.2,
+        "ready": null,
+        "documents": null
+      },
+      "fault_seconds": 20
+    }
+  }
+}

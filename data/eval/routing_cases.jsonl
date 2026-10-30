@@ -1,0 +1,54 @@
+# Routing eval set. Hand-written and DEV-quality: the rules (rules-v1) were developed
+# against similar phrasings, so scores here are optimistic. Not a held-out test set.
+{"id": "r001", "query": "What is our parental leave policy?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r002", "query": "How do I request a new laptop?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r003", "query": "What does the refund policy say about digital goods?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r004", "query": "Explain the on-call escalation process", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r005", "query": "What is the password rotation requirement?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r006", "query": "Summarize our data retention policy", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r007", "query": "What are the working hours for the support team?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r008", "query": "How does expense reimbursement work?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r009", "query": "What changed between API v3 and v4?", "expected_route": "DOCUMENT_COMPARISON"}
+{"id": "r010", "query": "Compare v2 and v3 of the security policy", "expected_route": "DOCUMENT_COMPARISON"}
+{"id": "r011", "query": "What is the difference between version 1 and version 2 of the SLA?", "expected_route": "DOCUMENT_COMPARISON"}
+{"id": "r012", "query": "Compare the current security policy with the previous version.", "expected_route": "DOCUMENT_COMPARISON"}
+{"id": "r013", "query": "How does the current \"Refund Policy\" differ from the previous version?", "expected_route": "DOCUMENT_COMPARISON"}
+{"id": "r014", "query": "What changed from v1 to v2 of the onboarding guide?", "expected_route": "DOCUMENT_COMPARISON"}
+{"id": "r015", "query": "How many tickets were created yesterday?", "expected_route": "SQL_ANALYTICS"}
+{"id": "r016", "query": "How many incidents happened last month?", "expected_route": "SQL_ANALYTICS"}
+{"id": "r017", "query": "What is the average resolution time per week?", "expected_route": "SQL_ANALYTICS"}
+{"id": "r018", "query": "Show the top 5 customers by ticket count", "expected_route": "SQL_ANALYTICS"}
+{"id": "r019", "query": "Total number of open tickets by region", "expected_route": "SQL_ANALYTICS"}
+{"id": "r020", "query": "How many orders were placed this week?", "expected_route": "SQL_ANALYTICS"}
+{"id": "r021", "query": "Why did customer X receive this payment error?", "expected_route": "SUPPORT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r022", "query": "Why is customer Acme seeing 502 errors on checkout?", "expected_route": "SUPPORT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r023", "query": "What caused the payment failures for customer 4821?", "expected_route": "SUPPORT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r024", "query": "Why did the checkout outage happen?", "expected_route": "INCIDENT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r025", "query": "What caused the database incident last Tuesday?", "expected_route": "INCIDENT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r026", "query": "Summarize the postmortem for the March outage", "expected_route": "INCIDENT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r027", "query": "What was the root cause of the downtime yesterday?", "expected_route": "INCIDENT_ANALYSIS", "roles": ["support_agent"]}
+{"id": "r028", "query": "Can I access this document?", "expected_route": "ACCESS_CHECK"}
+{"id": "r029", "query": "Do I have access to the board minutes?", "expected_route": "ACCESS_CHECK"}
+{"id": "r030", "query": "Am I allowed to view the salary bands document?", "expected_route": "ACCESS_CHECK"}
+{"id": "r031", "query": "Why was I denied access to the finance policy?", "expected_route": "ACCESS_CHECK"}
+{"id": "r032", "query": "Open document 3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b", "expected_route": "DOCUMENT_LOOKUP"}
+{"id": "r033", "query": "Show me document 7d9e1a2b-3c4d-4e5f-a6b7-c8d9e0f1a2b3", "expected_route": "DOCUMENT_LOOKUP"}
+{"id": "r034", "query": "Find the document titled Incident Response Runbook", "expected_route": "DOCUMENT_LOOKUP"}
+{"id": "r035", "query": "Find \"ERR_PAYMENT_4021\"", "expected_route": "LEXICAL_SEARCH"}
+{"id": "r036", "query": "Search for error code E1042", "expected_route": "LEXICAL_SEARCH"}
+{"id": "r037", "query": "exact phrase \"force majeure\"", "expected_route": "LEXICAL_SEARCH"}
+{"id": "r038", "query": "What is the policy as of January 2024?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r039", "query": "What was the refund policy last year?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r040", "query": "What was the refund policy on 2024-03-01?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r041", "query": "Compare incidents this month vs last month", "expected_route": "SQL_ANALYTICS"}
+{"id": "r042", "query": "Compare ticket volume this week and last week", "expected_route": "SQL_ANALYTICS"}
+{"id": "r043", "query": "How many tickets were created yesterday and why did volume spike?", "expected_route": "RAG_PLUS_SQL"}
+{"id": "r044", "query": "How many payment failures occurred last week and explain the cause", "expected_route": "RAG_PLUS_SQL"}
+{"id": "r045", "query": "How do I reset my VPN access?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r046", "query": "Who approves vendor contracts above 50k?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r047", "query": "What is the SLA for priority 1 tickets?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r048", "query": "List the steps for onboarding a new engineer", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r049", "query": "What is the average number of tickets per customer?", "expected_route": "SQL_ANALYTICS"}
+{"id": "r050", "query": "Count of incidents by service this quarter", "expected_route": "SQL_ANALYTICS"}
+{"id": "r051", "query": "What does section 4.2 of the refund policy say?", "expected_route": "RAG_KNOWLEDGE"}
+{"id": "r052", "query": "Which version of the API spec is current?", "expected_route": "RAG_KNOWLEDGE"}

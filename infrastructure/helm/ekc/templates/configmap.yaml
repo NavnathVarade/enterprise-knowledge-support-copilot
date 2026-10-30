@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ekc.fullname" . }}-config
+  labels: {{- include "ekc.labels" . | nindent 4 }}
+  {{- if .Values.migrations.enabled }}
+  annotations:
+    # Hook Jobs run BEFORE regular resources exist, so what they need (config, identity) is a
+    # hook too. Trade-off: these two are not removed by `helm uninstall`.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  {{- end }}
+data:
+  ENVIRONMENT: {{ .Values.environment | quote }}
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

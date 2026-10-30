@@ -1,0 +1,14 @@
+{"id": "q001", "query": "How long do I have to request a refund?", "relevant_docs": ["refund"], "forbidden_docs": []}
+{"id": "q002", "query": "Are digital goods refundable?", "relevant_docs": ["refund"], "forbidden_docs": []}
+{"id": "q003", "query": "How many weeks of parental leave do employees get?", "relevant_docs": ["leave"], "forbidden_docs": []}
+{"id": "q004", "query": "How quickly must the on-call engineer acknowledge a page?", "relevant_docs": ["oncall"], "forbidden_docs": []}
+{"id": "q005", "query": "How often must passwords be rotated?", "relevant_docs": ["password"], "forbidden_docs": []}
+{"id": "q006", "query": "How long are audit logs retained?", "relevant_docs": ["retention"], "forbidden_docs": []}
+{"id": "q007", "query": "What is the meal reimbursement limit per day?", "relevant_docs": ["expense"], "forbidden_docs": []}
+{"id": "q008", "query": "How do I reset my VPN token?", "relevant_docs": ["vpn"], "forbidden_docs": []}
+{"id": "q009", "query": "What is the first response time for priority 1 tickets?", "relevant_docs": ["sla"], "forbidden_docs": []}
+{"id": "q010", "query": "What happens during the first week of engineering onboarding?", "relevant_docs": ["onboard"], "forbidden_docs": []}
+{"id": "q011", "query": "Who approves vendor contracts above 50000 dollars?", "relevant_docs": ["vendor"], "forbidden_docs": []}
+{"id": "q012", "query": "What must happen for a Sev1 incident?", "relevant_docs": ["incident"], "forbidden_docs": []}
+{"id": "q013", "query": "What is the salary band for senior engineers?", "relevant_docs": [], "forbidden_docs": ["salary"]}
+{"id": "q014", "query": "How much do senior engineers earn confidential salary band?", "relevant_docs": [], "forbidden_docs": ["salary"]}

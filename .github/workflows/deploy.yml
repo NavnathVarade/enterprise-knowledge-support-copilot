@@ -1,0 +1,129 @@
+name: Deploy
+
+# Deploys an image that CI already built, scanned and signed. It never builds anything.
+# Triggers: CI succeeded on main (-> staging, then production behind a manual approval), or a
+# manual run with an explicit image digest (also the rollback path: redeploy an older digest).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_digest:
+        description: "API image digest to deploy (sha256:...). Required for manual runs."
+        required: true
+        type: string
+      web_image_digest:
+        description: "Web image digest to deploy (sha256:...). Required for manual runs."
+        required: true
+        type: string
+      environment:
+        description: "Target"
+        required: true
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  # One deploy per environment at a time; a running deploy is never cancelled mid-rollout.
+  group: deploy-${{ github.event.inputs.environment || 'pipeline' }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_REPO: ghcr.io/${{ github.repository }}/ekc
+  WEB_IMAGE_REPO: ghcr.io/${{ github.repository }}/ekc-web
+
+jobs:
+  resolve:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.pick.outputs.digest }}
+      web_digest: ${{ steps.pick.outputs.web_digest }}
+      ref: ${{ steps.pick.outputs.ref }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pick the image digest and the matching git ref
+        id: pick
+        env:
+          INPUT_DIGEST: ${{ github.event.inputs.image_digest }}
+          INPUT_WEB_DIGEST: ${{ github.event.inputs.web_image_digest }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_DIGEST:-}" ]; then
+            digest="$INPUT_DIGEST"
+            web_digest="$INPUT_WEB_DIGEST"
+            ref="$GITHUB_SHA"   # manual runs deploy the manifests of the dispatched ref
+          else
+            # CI tagged the image with the commit SHA; resolve that tag to its immutable digest.
+            digest=$(docker buildx imagetools inspect "$IMAGE_REPO:$HEAD_SHA" --format '{{ .Manifest.Digest }}')
+            web_digest=$(docker buildx imagetools inspect "$WEB_IMAGE_REPO:$HEAD_SHA" --format '{{ .Manifest.Digest }}')
+            ref="$HEAD_SHA"
+          fi
+          for v in "$digest" "$web_digest"; do
+            if ! printf '%s' "$v" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+              echo "::error::could not determine a valid image digest (got '${v:-}')"
+              exit 1
+            fi
+          done
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "web_digest=$web_digest" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    needs: resolve
+    if: github.event_name == 'workflow_run' || github.event.inputs.environment == 'staging'
+    uses: ./.github/workflows/_deploy-env.yml
+    with:
+      environment: staging
+      digest: ${{ needs.resolve.outputs.digest }}
+      web_digest: ${{ needs.resolve.outputs.web_digest }}
+      ref: ${{ needs.resolve.outputs.ref }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
+
+  deploy-production:
+    needs: [resolve, deploy-staging]
+    # Runs only after staging succeeded in the same pipeline; the `production` GitHub
+    # Environment must have required reviewers (manual approval) configured.
+    if: github.event_name == 'workflow_run'
+    uses: ./.github/workflows/_deploy-env.yml
+    with:
+      environment: production
+      digest: ${{ needs.resolve.outputs.digest }}
+      web_digest: ${{ needs.resolve.outputs.web_digest }}
+      ref: ${{ needs.resolve.outputs.ref }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
+
+  deploy-production-manual:
+    needs: resolve
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    uses: ./.github/workflows/_deploy-env.yml
+    with:
+      environment: production
+      digest: ${{ needs.resolve.outputs.digest }}
+      web_digest: ${{ needs.resolve.outputs.web_digest }}
+      ref: ${{ needs.resolve.outputs.ref }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit

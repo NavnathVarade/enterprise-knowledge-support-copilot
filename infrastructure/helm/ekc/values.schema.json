@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["image", "environment"],
+  "properties": {
+    "environment": {"enum": ["production", "staging"]},
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": {"type": "string"},
+        "tag": {"type": "string", "not": {"const": "latest"}},
+        "pullPolicy": {"enum": ["IfNotPresent", "Always", "Never"]}
+      }
+    },
+    "outboxRelay": {"type": "object"},
+    "web": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "object",
+          "required": ["repository", "tag"],
+          "properties": {"tag": {"type": "string", "not": {"const": "latest"}}}
+        },
+        "replicas": {"type": "integer", "minimum": 1}
+      }
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "autoscaling": {
+          "type": "object",
+          "properties": {
+            "minReplicas": {"type": "integer", "minimum": 2},
+            "maxReplicas": {"type": "integer", "minimum": 2},
+            "targetCPUUtilization": {"type": "integer", "minimum": 10, "maximum": 95}
+          }
+        }
+      }
+    },
+    "ingestionWorker": {
+      "type": "object",
+      "properties": {"replicas": {"type": "integer", "minimum": 1}}
+    }
+  }
+}

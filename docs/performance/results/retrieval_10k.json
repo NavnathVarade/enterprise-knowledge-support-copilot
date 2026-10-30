@@ -1,0 +1,113 @@
+{
+  "generated_at": "2026-10-20T05:19:45.360929+00:00",
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logical_cores": 2,
+    "memory_gb": 7.8,
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "note": "Client, Postgres and Redis share this one machine; numbers are not a production-hardware prediction.",
+    "postgres": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "pgvector": "0.6.0",
+    "shared_buffers": "128MB"
+  },
+  "dataset": {
+    "synthetic": true,
+    "vectors": "Gaussian mixture, 200 clusters, 1024 dims (not real embeddings)",
+    "text": "Zipf over a 3000-word vocabulary, 70 words/chunk",
+    "total_chunks": 10000,
+    "tenants": 10,
+    "querying_tenant_chunks": 1000,
+    "restricted_document_fraction": 0.2,
+    "load_seconds": 50.3,
+    "hnsw_index_mb": 81.9,
+    "chunks_plus_embeddings_total_mb": 160.2
+  },
+  "config": {
+    "k": 50,
+    "queries": 100,
+    "recall_queries": 30,
+    "hnsw_index": "pgvector defaults (m=16, ef_construction=64)",
+    "single_client_sequential": true
+  },
+  "results": {
+    "vector_leg_by_ef_search": {
+      "40": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 25.62,
+          "p95_ms": 34.69,
+          "p99_ms": 36.26,
+          "mean_ms": 26.69,
+          "max_ms": 38.62
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      },
+      "100": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 29.6,
+          "p95_ms": 36.92,
+          "p99_ms": 39.22,
+          "mean_ms": 30.0,
+          "max_ms": 41.77
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      },
+      "200": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 25.36,
+          "p95_ms": 34.5,
+          "p99_ms": 39.21,
+          "mean_ms": 26.66,
+          "max_ms": 84.63
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      },
+      "400": {
+        "latency": {
+          "n": 100.0,
+          "p50_ms": 24.69,
+          "p95_ms": 30.92,
+          "p99_ms": 34.44,
+          "mean_ms": 25.88,
+          "max_ms": 49.35
+        },
+        "recall_at_50_mean": 1.0,
+        "recall_at_50_min": 1.0,
+        "results_returned_mean": 50.0,
+        "results_requested": 50
+      }
+    },
+    "lexical_leg": {
+      "n": 100.0,
+      "p50_ms": 10.21,
+      "p95_ms": 14.62,
+      "p99_ms": 16.92,
+      "mean_ms": 10.85,
+      "max_ms": 19.87
+    },
+    "hybrid_authorized": {
+      "ef_search": "database default (40)",
+      "n": 100.0,
+      "p50_ms": 42.62,
+      "p95_ms": 50.3,
+      "p99_ms": 58.52,
+      "mean_ms": 43.54,
+      "max_ms": 124.12
+    },
+    "plans": {
+      "vector_acl_filtered": "Limit (actual time=4.675..4.681 rows=10 loops=1)\n  Buffers: shared hit=3266\n  ->  Sort (actual time=4.674..4.679 rows=10 loops=1)\n        Sort Key: ((e.embedding <=> '<query vector>'::vector))\n        Sort Method: top-N heapsort  Memory: 26kB\n        Buffers: shared hit=3266\n        ->  Hash Join (actual time=0.413..4.559 rows=790 loops=1)\n              Hash Cond: (c.id = e.chunk_id)\n              Buffers: shared hit=3266\n              ->  Nested Loop (actual time=0.069..0.862 rows=790 loops=1)\n                    Buffers: shared hit=613\n                    ->  Nested Loop (actual time=0.062..0.380 rows=79 loops=1)\n                          Buffers: shared hit=270\n                          ->  Hash Semi Join (actual time=0.049..0.234 rows=79 loops=1)\n                                Hash Cond: (d.id = a.document_id)\n                                Buffers: shared hit=33\n                                ->  Seq Scan on documents d (actual time=0.004..0.096 rows=1000 loops=1)\n                                      Buffers: shared hit=30\n                                ->  Hash (actual time=0.039..0.041 rows=79 loops=1)\n                                      Buckets: 1024  Batches: 1  Memory Usage: 12kB\n                                      Buffers: shared hit=3\n                                      ->  Bitmap Heap Scan on document_acl a (actual time=0.015..0.030 rows=79 loops=1)\n                                            Recheck Cond: (tenant_id = 'ab86de71-5f5d-4c67-b784-4dbd3f377a5f'::uuid)\n                                            Filter: (((visibility)::text = 'public_within_tenant'::text) OR (((visibility)::text = 'department_only'::text) AND ((department)::text = 'engineering'::text)))\n                                            Rows Removed by Filter: 21\n                                            Heap Blocks: exact=2\n                                            Buffers: shared hit=3\n                                            ->  Bitmap Index Scan on ix_document_acl_tenant_id (actual time=0.007..0.007 rows=100 loops=1)\n                                                  Index Cond: (tenant_id = 'ab86de71-5f5d-4c67-b784-4dbd3f377a5f'::uuid)\n                                                  Buffers: shared hit=1\n                          ->  Index Scan using ix_document_versions_document_id on document_versions v (actual time=0.001..0.002 rows=1 loops=79)\n                                Index Cond: (document_id = d.id)\n                                Filter: (((status)::text <> 'draft'::text) AND (effective_from <= now()))\n                                Buffers: shared hit=237\n                    ->  Index Scan using ix_document_chunks_document_version_id on document_chunks c (actual time=0.002..0.005 rows=10 loops=79)\n                          Index Cond: (document_version_id = v.id)\n                          Buffers: shared hit=343\n              ->  Hash (actual time=0.311..0.312 rows=1000 loops=1)\n                    Buckets: 1024  Batches: 1  Memory Usage: 73kB\n                    Buffers: shared hit=19\n                    ->  Bitmap Heap Scan on embeddings e (actual time=0.027..0.156 rows=1000 loops=1)\n                          Recheck Cond: (tenant_id = 'ab86de71-5f5d-4c67-b784-4dbd3f377a5f'::uuid)\n                          Heap Blocks: exact=17\n                          Buffers: shared hit=19\n                          ->  Bitmap Index Scan on ix_embeddings_tenant_id (actual time=0.021..0.021 rows=1000 loops=1)\n                                Index Cond: (tenant_id = 'ab86de71-5f5d-4c67-b784-4dbd3f377a5f'::uuid)\n                                Buffers: shared hit=2\nPlanning:\n  Buffers: shared hit=61\nPlanning Time: 1.382 ms\nExecution Time: 4.733 ms"
+    }
+  }
+}

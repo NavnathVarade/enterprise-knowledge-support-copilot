@@ -1,0 +1,176 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ekc-ingestion-worker
+  labels: {app.kubernetes.io/name: ekc-ingestion-worker, app.kubernetes.io/component: worker}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 1}}
+  selector:
+    matchLabels: {app.kubernetes.io/name: ekc-ingestion-worker}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ekc-ingestion-worker, app.kubernetes.io/component: worker}
+    spec:
+      serviceAccountName: ekc
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {app.kubernetes.io/name: ekc-ingestion-worker}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: worker
+          image: ekc
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "packages.workers", "ingestion"]
+          ports:
+            - {name: metrics, containerPort: 9102}
+          envFrom:
+            - configMapRef: {name: ekc-config}
+            - secretRef: {name: ekc-secrets}
+          resources:
+            requests: {cpu: 500m, memory: 1Gi, ephemeral-storage: 64Mi}
+            limits: {memory: 2Gi, ephemeral-storage: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          # Startup = first heartbeat written (consumer/relay connected). Allows 5s x 36 = 3 min
+          # before liveness takes over, so a slow Kafka join is not a restart loop.
+          startupProbe:
+            exec: {command: ["python", "-m", "packages.workers.health", "--max-age", "900"]}
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 36
+          # Liveness = recent heartbeat from the run loop (a hung loop stops beating).
+          livenessProbe:
+            exec: {command: ["python", "-m", "packages.workers.health", "--max-age", "900"]}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          # Readiness gates rolling updates only (workers take no traffic): a new pod that never
+          # heartbeats stops the rollout instead of replacing healthy pods.
+          readinessProbe:
+            exec: {command: ["python", "-m", "packages.workers.health", "--max-age", "900"]}
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: kafka-ca, mountPath: /etc/ekc/kafka-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 128Mi}
+        - name: kafka-ca
+          secret: {secretName: ekc-kafka-ca, optional: false}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ekc-outbox-relay
+  labels: {app.kubernetes.io/name: ekc-outbox-relay, app.kubernetes.io/component: worker}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: ekc-outbox-relay}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ekc-outbox-relay, app.kubernetes.io/component: worker}
+    spec:
+      serviceAccountName: ekc
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {app.kubernetes.io/name: ekc-outbox-relay}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: worker
+          image: ekc
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "packages.workers", "outbox-relay"]
+          ports:
+            - {name: metrics, containerPort: 9102}
+          envFrom:
+            - configMapRef: {name: ekc-config}
+            - secretRef: {name: ekc-secrets}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 64Mi}
+            limits: {memory: 512Mi, ephemeral-storage: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          # Startup = first heartbeat written (consumer/relay connected). Allows 5s x 36 = 3 min
+          # before liveness takes over, so a slow Kafka join is not a restart loop.
+          startupProbe:
+            exec: {command: ["python", "-m", "packages.workers.health", "--max-age", "900"]}
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 36
+          # Liveness = recent heartbeat from the run loop (a hung loop stops beating).
+          livenessProbe:
+            exec: {command: ["python", "-m", "packages.workers.health", "--max-age", "900"]}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          # Readiness gates rolling updates only (workers take no traffic): a new pod that never
+          # heartbeats stops the rollout instead of replacing healthy pods.
+          readinessProbe:
+            exec: {command: ["python", "-m", "packages.workers.health", "--max-age", "900"]}
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: kafka-ca, mountPath: /etc/ekc/kafka-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 128Mi}
+        - name: kafka-ca
+          secret: {secretName: ekc-kafka-ca, optional: false}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ekc-ingestion-worker
+spec:
+  # Two replicas: allow one voluntary eviction at a time; Kafka redelivers any in-flight message.
+  maxUnavailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: ekc-ingestion-worker}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ekc-outbox-relay
+spec:
+  # Single replica by design (Recreate; ordering). Voluntary eviction is allowed so node drains never
+  # block: the outbox table buffers events, and the relay resumes from unpublished rows.
+  maxUnavailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: ekc-outbox-relay}

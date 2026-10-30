@@ -1,0 +1,93 @@
+# Run BEFORE the new Deployments roll out. Annotated as Argo CD PreSync hooks; with plain
+# `kubectl apply` a Job's pod template is immutable, so delete the old Job first
+# (`kubectl delete job -n ekc ekc-migrate ekc-topics-init --ignore-not-found`).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ekc-migrate
+  labels: {app.kubernetes.io/name: ekc-migrate, app.kubernetes.io/component: job}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ekc-migrate, app.kubernetes.io/component: job}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ekc
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: migrate
+          image: ekc
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef: {name: ekc-config}
+            - secretRef: {name: ekc-secrets}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 32Mi}
+            limits: {memory: 512Mi, ephemeral-storage: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ekc-topics-init
+  labels: {app.kubernetes.io/name: ekc-topics-init, app.kubernetes.io/component: job}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ekc-topics-init, app.kubernetes.io/component: job}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ekc
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: topics
+          image: ekc
+          command: ["python", "-m", "scripts.create_topics"]
+          envFrom:
+            - configMapRef: {name: ekc-config}
+            - secretRef: {name: ekc-secrets}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi, ephemeral-storage: 32Mi}
+            limits: {memory: 256Mi, ephemeral-storage: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: kafka-ca, mountPath: /etc/ekc/kafka-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        - name: kafka-ca
+          secret: {secretName: ekc-kafka-ca}

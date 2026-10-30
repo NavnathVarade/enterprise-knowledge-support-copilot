@@ -1,0 +1,40 @@
+{
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logical_cores": 2,
+    "memory_gb": 7.8,
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "note": "Client, Postgres and Redis share this one machine; numbers are not a production-hardware prediction."
+  },
+  "synthetic_text": true,
+  "results": [
+    {
+      "words": 1000,
+      "chars": 8454,
+      "chunks": 7,
+      "median_seconds": 0.0001,
+      "best_seconds": 0.0001,
+      "median_words_per_second": 7910329,
+      "median_chunks_per_second": 55372
+    },
+    {
+      "words": 10000,
+      "chars": 84585,
+      "chunks": 71,
+      "median_seconds": 0.0013,
+      "best_seconds": 0.0013,
+      "median_words_per_second": 7598646,
+      "median_chunks_per_second": 53950
+    },
+    {
+      "words": 100000,
+      "chars": 846557,
+      "chunks": 747,
+      "median_seconds": 0.0081,
+      "best_seconds": 0.008,
+      "median_words_per_second": 12336997,
+      "median_chunks_per_second": 92157
+    }
+  ]
+}

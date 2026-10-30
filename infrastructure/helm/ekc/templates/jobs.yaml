@@ -1,0 +1,51 @@
+{{- if .Values.migrations.enabled }}
+{{- $jobs := list (dict "name" "migrate" "cmd" (list "alembic" "upgrade" "head") "mem" "512Mi" "deadline" 900 "weight" "-5") }}
+{{- if .Values.migrations.topicsInit }}
+{{- $jobs = append $jobs (dict "name" "topics-init" "cmd" (list "python" "-m" "scripts.create_topics") "mem" "256Mi" "deadline" 600 "weight" "-4") }}
+{{- end }}
+{{- range $j := $jobs }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Revision in the name: a Job's pod template is immutable, so each release gets a fresh Job.
+  name: {{ include "ekc.fullname" $ }}-{{ $j.name }}-{{ $.Release.Revision }}
+  labels:
+    {{- include "ekc.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ include "ekc.fullname" $ }}-{{ $j.name }}
+    app.kubernetes.io/component: job
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": {{ $j.weight | quote }}
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: {{ $j.deadline }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ekc.fullname" $ }}-{{ $j.name }}
+        app.kubernetes.io/component: job
+    spec:
+      restartPolicy: Never
+      {{- include "ekc.podSecurity" $ | nindent 6 }}
+      containers:
+        - name: {{ $j.name }}
+          image: {{ include "ekc.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: {{ toJson $j.cmd }}
+          {{- include "ekc.envFrom" $ | nindent 10 }}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi, ephemeral-storage: 32Mi}
+            limits: {memory: {{ $j.mem }}, ephemeral-storage: 128Mi}
+          {{- include "ekc.containerSecurity" $ | nindent 10 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: kafka-ca, mountPath: /etc/ekc/kafka-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        - name: kafka-ca
+          secret: {secretName: {{ $.Values.secrets.kafkaCaSecretName }}, optional: false}
+---
+{{- end }}
+{{- end }}

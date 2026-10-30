@@ -1,0 +1,122 @@
+{
+  "generated_at": "2026-10-20T18:58:51.600615+00:00",
+  "environment": "disposable sandbox: real Postgres 16, Redis, uvicorn (1 worker), 4 req/s per endpoint",
+  "scenarios": {
+    "redis_blackhole_20s": {
+      "phases": {
+        "before_fault": {
+          "seconds": 6.0,
+          "live": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 2.7,
+            "max_ms": 122.9
+          },
+          "ready": {
+            "requests": 3,
+            "status": {
+              "200": 3
+            },
+            "p50_ms": 2008.1,
+            "max_ms": 2131.7
+          },
+          "documents": {
+            "requests": 24,
+            "status": {
+              "200": 24
+            },
+            "p50_ms": 12.1,
+            "max_ms": 88.0
+          },
+          "login": {
+            "requests": 6,
+            "status": {
+              "401": 6
+            },
+            "p50_ms": 309.7,
+            "max_ms": 624.7
+          }
+        },
+        "during_fault": {
+          "seconds": 20.0,
+          "live": {
+            "requests": 80,
+            "status": {
+              "200": 80
+            },
+            "p50_ms": 2.6,
+            "max_ms": 5.2
+          },
+          "ready": {
+            "requests": 10,
+            "status": {
+              "200": 10
+            },
+            "p50_ms": 2004.5,
+            "max_ms": 2007.6
+          },
+          "documents": {
+            "requests": 80,
+            "status": {
+              "200": 80
+            },
+            "p50_ms": 12.2,
+            "max_ms": 21.7
+          },
+          "login": {
+            "requests": 18,
+            "status": {
+              "401": 18
+            },
+            "p50_ms": 306.2,
+            "max_ms": 2311.5
+          }
+        },
+        "after_fault": {
+          "seconds": 25.0,
+          "live": {
+            "requests": 99,
+            "status": {
+              "200": 99
+            },
+            "p50_ms": 2.5,
+            "max_ms": 4.4
+          },
+          "ready": {
+            "requests": 13,
+            "status": {
+              "200": 13
+            },
+            "p50_ms": 2004.1,
+            "max_ms": 2009.9
+          },
+          "documents": {
+            "requests": 99,
+            "status": {
+              "200": 99
+            },
+            "p50_ms": 12.2,
+            "max_ms": 25.2
+          },
+          "login": {
+            "requests": 22,
+            "status": {
+              "401": 22
+            },
+            "p50_ms": 301.4,
+            "max_ms": 2296.8
+          }
+        }
+      },
+      "seconds_to_recover_after_fault_removed": {
+        "live": 0.2,
+        "ready": 0.3,
+        "documents": 0.2,
+        "login": 0.8
+      },
+      "fault_seconds": 20
+    }
+  }
+}

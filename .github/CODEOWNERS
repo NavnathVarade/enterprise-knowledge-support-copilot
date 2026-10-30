@@ -1,0 +1,9 @@
+# REPLACE @REPLACE_ME_ORG/platform and @REPLACE_ME_ORG/security with real GitHub teams before
+# enabling "Require review from Code Owners" in branch protection (invalid owners are ignored).
+*                                   @REPLACE_ME_ORG/platform
+/.github/                           @REPLACE_ME_ORG/platform @REPLACE_ME_ORG/security
+/infrastructure/                    @REPLACE_ME_ORG/platform @REPLACE_ME_ORG/security
+/migrations/                        @REPLACE_ME_ORG/platform
+/apps/web/                          @REPLACE_ME_ORG/platform @REPLACE_ME_ORG/security
+/packages/security/                 @REPLACE_ME_ORG/security
+/packages/auth/                     @REPLACE_ME_ORG/security

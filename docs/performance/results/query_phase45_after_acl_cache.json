@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-10-25T05:38:52.494968+00:00",
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "logical_cores": 2,
+    "memory_gb": 7.8,
+    "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "note": "Client, Postgres and Redis share this one machine; numbers are not a production-hardware prediction.",
+    "note_server": "pool 10+5, after ACL predicate cache"
+  },
+  "config": {
+    "documents": 60,
+    "ingest_seconds_for_all_documents": 3.0,
+    "duration_seconds_per_point": 15.0,
+    "closed_loop": true,
+    "server": "pool 10+5, after ACL predicate cache",
+    "providers": "stand-ins (extractive LLM, deterministic embeddings, lexical reranker): provider latency EXCLUDED"
+  },
+  "answer_outcomes_200_only": {
+    "ANSWERED": 1111
+  },
+  "results": {
+    "query": [
+      {
+        "concurrency": 1,
+        "requests": 286,
+        "success_2xx": 286,
+        "errors": 0,
+        "status_counts": {
+          "200": 286
+        },
+        "throughput_rps": 19.4,
+        "latency": {
+          "n": 286.0,
+          "p50_ms": 49.52,
+          "p95_ms": 64.23,
+          "p99_ms": 73.62,
+          "mean_ms": 51.65,
+          "max_ms": 184.24
+        }
+      },
+      {
+        "concurrency": 4,
+        "requests": 406,
+        "success_2xx": 406,
+        "errors": 0,
+        "status_counts": {
+          "200": 406
+        },
+        "throughput_rps": 27.2,
+        "latency": {
+          "n": 406.0,
+          "p50_ms": 145.39,
+          "p95_ms": 188.07,
+          "p99_ms": 228.54,
+          "mean_ms": 146.61,
+          "max_ms": 259.39
+        }
+      },
+      {
+        "concurrency": 8,
+        "requests": 410,
+        "success_2xx": 410,
+        "errors": 0,
+        "status_counts": {
+          "200": 410
+        },
+        "throughput_rps": 27.4,
+        "latency": {
+          "n": 410.0,
+          "p50_ms": 287.51,
+          "p95_ms": 346.46,
+          "p99_ms": 436.06,
+          "mean_ms": 290.73,
+          "max_ms": 477.43
+        }
+      }
+    ]
+  }
+}

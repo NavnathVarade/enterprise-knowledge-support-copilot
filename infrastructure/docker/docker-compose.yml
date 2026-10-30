@@ -1,0 +1,376 @@
+# Reference environment: the full topology on one Docker host (gateway, api, workers, Postgres,
+# Redis, Kafka, S3-compatible storage). Add observability with
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+#
+# This is a REFERENCE environment, not a production topology. Production runs on Kubernetes
+# (infrastructure/kubernetes) with managed Postgres/Redis/Kafka/S3. What this file does
+# demonstrate and production inherits:
+#   * service-name DNS between containers, never localhost (the only loopback use is a container
+#     probing its OWN health endpoint);
+#   * every application container: non-root, read-only root filesystem, no capabilities,
+#     no-new-privileges, CPU/memory/pid limits, bounded logs, graceful stop;
+#   * only the gateway publishes a port (loopback by default);
+#   * a data network with NO route to the internet (Postgres, Redis, Kafka, MinIO) separate from
+#     the app network that can reach LLM/embedding providers.
+#
+# Single-node Kafka runs PLAINTEXT on the private data network, which the application permits
+# only for ENVIRONMENT=development/test. Staging/production settings refuse PLAINTEXT.
+#
+# Required variables (no defaults, compose refuses to start without them): see .env.compose.example.
+# JWT keys and provider keys come from ../../.env (see ../../.env.production.example); never bake them in.
+#
+# STATUS: `docker compose config` validated for both files. The full stack has NOT been brought
+# up end to end in the build sandbox (Docker Hub is unreachable there), and none of the pinned
+# third-party image tags below were pulled there. See docs/deployment/DOCKER.md.
+
+name: enterprise-knowledge-copilot
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  init: true
+  logging: *default-logging
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ekc_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ekc
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ekc_app -d ekc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 2g, pids: 1024}
+    logging: *default-logging
+    networks: [data-net]
+    # No host port: only containers on data-net reach it. For local psql, use
+    #   docker compose exec postgres psql -U ekc_app ekc
+
+  redis:
+    image: redis:7.4.1-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 384m, pids: 256}
+    logging: *default-logging
+    networks: [data-net]
+
+  kafka:
+    image: apache/kafka:3.7.0
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      # Service-DNS advertised listener: other containers reach Kafka at "kafka:9092", never
+      # localhost -- the most common Compose misconfiguration.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits: {cpus: "1.5", memory: 1g, pids: 512}
+    logging: *default-logging
+    networks: [data-net]
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ekcminio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512m, pids: 512}
+    logging: *default-logging
+    networks: [data-net]
+
+  # The application never creates its bucket; something must. One-shot, idempotent.
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ekcminio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/ekc-documents
+    depends_on:
+      minio: {condition: service_healthy}
+    logging: *default-logging
+    networks: [data-net]
+
+  migrate:
+    <<: [*hardening]
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+    image: ekc:compose
+    env_file:
+      - path: ../../.env
+        required: false
+    environment: &ekc-env
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://ekc_app:${POSTGRES_PASSWORD:?}@postgres:5432/ekc
+      DATABASE_READ_ONLY_ROLE_URL: postgresql+asyncpg://ekc_analytics_ro:${ANALYTICS_RO_PASSWORD:?ANALYTICS_RO_PASSWORD must be set}@postgres:5432/ekc
+      REDIS_URL: redis://redis:6379/0
+      # This stack HAS a broker: Kafka is explicitly on and the development-only substitutes
+      # (in-process event dispatcher, local-disk object store) explicitly off, whatever a
+      # developer's own .env says.
+      KAFKA_ENABLED: "true"
+      EVENTS_LOCAL_DISPATCH: "false"
+      OBJECT_STORE_LOCAL_DIRECTORY: ""
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      OBJECT_STORE_BUCKET: ekc-documents
+      OBJECT_STORE_ENDPOINT_URL: http://minio:9000
+      OBJECT_STORE_SSE: ""
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-ekcminio}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+      OTEL_METRICS_BEARER_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN must be set}
+      # The gateway is the one trusted proxy in front of the API (see gateway/nginx.conf).
+      HARDENING_TRUSTED_PROXY_HOPS: "1"
+    entrypoint: ["alembic"]
+    command: ["upgrade", "head"]
+    restart: "no"
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512m, pids: 256}
+    networks: [data-net]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  # Creates the read-only analytics role AFTER the migrations (it grants on their tables).
+  # Without this the SQL analytics engine is disabled by design (it refuses to run as the owner).
+  db-roles:
+    image: pgvector/pgvector:0.8.0-pg16
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      ANALYTICS_RO_PASSWORD: ${ANALYTICS_RO_PASSWORD:?ANALYTICS_RO_PASSWORD must be set}
+    volumes:
+      - ../sql/analytics_readonly_role.sql:/sql/analytics_readonly_role.sql:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        psql "host=postgres user=ekc_app dbname=ekc" -v ON_ERROR_STOP=1 \
+          -v ro_password="$$ANALYTICS_RO_PASSWORD" -f /sql/analytics_readonly_role.sql
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    logging: *default-logging
+    networks: [data-net]
+
+  topics-init:
+    <<: [*hardening]
+    image: ekc:compose
+    env_file:
+      - path: ../../.env
+        required: false
+    environment: *ekc-env
+    entrypoint: ["python", "-m", "scripts.create_topics"]
+    command: ["--partitions", "3", "--replication-factor", "1"]
+    restart: "no"
+    networks: [data-net]
+    depends_on:
+      kafka: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+
+  api:
+    <<: [*hardening]
+    image: ekc:compose
+    env_file:
+      - path: ../../.env
+        required: false
+    environment: *ekc-env
+    restart: unless-stopped
+    # No published port: the gateway is the only way in.
+    expose: ["8000"]
+    depends_on:
+      db-roles: {condition: service_completed_successfully}
+      minio-init: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    healthcheck:
+      # Loopback is the documented exception: a container probing its OWN liveness.
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8000/api/v1/health/live"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    # Must exceed uvicorn's --timeout-graceful-shutdown (25 s, see Dockerfile).
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 1g, pids: 256}
+    networks: [app-net, data-net]
+
+  ingestion-worker:
+    <<: [*hardening]
+    image: ekc:compose
+    env_file:
+      - path: ../../.env
+        required: false
+    environment: *ekc-env
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "packages.workers"]
+    command: ["ingestion"]
+    depends_on:
+      db-roles: {condition: service_completed_successfully}
+      minio-init: {condition: service_completed_successfully}
+      topics-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-m", "packages.workers.health", "--max-age", "900"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    stop_grace_period: 120s   # finishes the in-flight message (parse + embed) before exiting
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 1g, pids: 256}
+    networks: [app-net, data-net]
+
+  outbox-relay:
+    <<: [*hardening]
+    image: ekc:compose
+    env_file:
+      - path: ../../.env
+        required: false
+    environment: *ekc-env
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "packages.workers"]
+    command: ["outbox-relay"]
+    depends_on:
+      db-roles: {condition: service_completed_successfully}
+      topics-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-m", "packages.workers.health", "--max-age", "900"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 384m, pids: 256}
+    # No internet need: data-net for Postgres/Kafka, metrics-net so Prometheus can scrape it.
+    networks: [data-net, metrics-net]
+
+  # Static single-page app. No secrets, no data access, no outbound traffic needed.
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    image: ekc-web:${EKC_VERSION:-dev}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 64m, pids: 64}
+    logging: *default-logging
+    networks: [app-net]
+
+  gateway:
+    image: nginxinc/nginx-unprivileged:1.27.2-alpine
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    # Loopback by default. Set GATEWAY_BIND=0.0.0.0 only behind a TLS-terminating load balancer.
+    ports:
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/ekc_proxy.conf:/etc/nginx/ekc_proxy.conf:ro
+    depends_on:
+      api: {condition: service_healthy}
+      web: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 128m, pids: 128}
+    logging: *default-logging
+    networks: [app-net]
+
+networks:
+  # Application network: can reach the internet (LLM / embedding providers).
+  app-net:
+    driver: bridge
+  # Data network: internal, no route out. Only the api and workers join both.
+  data-net:
+    driver: bridge
+    internal: true
+  # Scrape path for services that are not on app-net (the outbox relay). Internal as well.
+  metrics-net:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  minio-data:

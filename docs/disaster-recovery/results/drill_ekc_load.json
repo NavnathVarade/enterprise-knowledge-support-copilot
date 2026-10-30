@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "measured_on": "the database named below, on this host: NOT representative of production size",
+  "source_database": "ekc_load",
+  "dump_size_bytes": 171898,
+  "tables": 23,
+  "rows_total": 1077,
+  "audit_tenants": 1,
+  "backup_seconds": 0.51,
+  "restore_seconds": 0.17,
+  "checks": [
+    {
+      "name": "alembic_head",
+      "ok": true,
+      "detail": "restored=0007_usage_ledger manifest=0007_usage_ledger"
+    },
+    {
+      "name": "table_row_counts",
+      "ok": true,
+      "detail": "23 tables; missing=[] extra=[] mismatched={}"
+    },
+    {
+      "name": "pgvector_extension",
+      "ok": true,
+      "detail": "installed=1"
+    },
+    {
+      "name": "no_invalid_indexes",
+      "ok": true,
+      "detail": "invalid=0"
+    },
+    {
+      "name": "audit_tails_match_manifest",
+      "ok": true,
+      "detail": "1 tenants with audit rows"
+    },
+    {
+      "name": "audit_chain_reverifies",
+      "ok": true,
+      "detail": "956 events checked; broken=[]"
+    }
+  ]
+}

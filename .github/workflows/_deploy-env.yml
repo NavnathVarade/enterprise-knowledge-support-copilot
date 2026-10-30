@@ -1,0 +1,176 @@
+name: Deploy to one environment (reusable)
+
+# Called by deploy.yml. Verifies the image signature, applies the Kustomize overlay in ordered
+# stages (config -> migrations -> workloads), waits for the rollout, smoke-tests the public URL
+# and rolls back automatically if the rollout or the smoke test fails.
+#
+# Per-environment configuration lives in GitHub Environment *variables* (not secrets):
+#   AWS_DEPLOY_ROLE_ARN  IAM role trusted for this repo+environment via GitHub OIDC
+#   AWS_REGION, EKS_CLUSTER_NAME, EKC_HOST (public hostname)
+# No long-lived cloud credentials are stored anywhere.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      digest:
+        required: true
+        type: string
+      web_digest:
+        required: true
+        type: string
+      ref:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE_REPO: ghcr.io/${{ github.repository }}/ekc
+      WEB_IMAGE_REPO: ghcr.io/${{ github.repository }}/ekc-web
+      ENVIRONMENT: ${{ inputs.environment }}
+      DIGEST: ${{ inputs.digest }}
+      WEB_DIGEST: ${{ inputs.web_digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          printf '%s' "$WEB_DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          case "$ENVIRONMENT" in staging|production) ;; *) echo "bad environment"; exit 1 ;; esac
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Verify both images were signed by this repository's CI on main
+        run: |
+          for image in "$IMAGE_REPO@$DIGEST" "$WEB_IMAGE_REPO@$WEB_DIGEST"; do
+            cosign verify "$image" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/ci.yml@refs/heads/main" \
+              > /dev/null
+          done
+
+      - name: Configure AWS credentials (OIDC, short-lived)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: ekc-deploy-${{ github.run_id }}
+
+      - name: Install kubectl and kustomize
+        run: |
+          set -euo pipefail
+          curl -sSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.29.9/bin/linux/amd64/kubectl"
+          chmod +x /usr/local/bin/kubectl
+          curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz | tar xz -C /usr/local/bin kustomize
+
+      - name: Connect to the cluster
+        env:
+          CLUSTER: ${{ vars.EKS_CLUSTER_NAME }}
+        run: aws eks update-kubeconfig --name "$CLUSTER" --alias ekc-target
+
+      - name: Render the overlay with the verified digest and the real hostname
+        env:
+          HOST: ${{ vars.EKC_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST"
+          cd "infrastructure/kubernetes/overlays/$ENVIRONMENT"
+          kustomize edit set image "ekc=$IMAGE_REPO@$DIGEST" "ekc-web=$WEB_IMAGE_REPO@$WEB_DIGEST"
+          cat > ingress-host.patch.yaml <<PATCH
+          - op: replace
+            path: /spec/tls/0/hosts/0
+            value: $HOST
+          - op: replace
+            path: /spec/rules/0/host
+            value: $HOST
+          PATCH
+          kustomize edit add patch --path ingress-host.patch.yaml --kind Ingress --name ekc-api
+          kustomize build . > "$RUNNER_TEMP/rendered.yaml"
+          grep -q "$IMAGE_REPO@$DIGEST" "$RUNNER_TEMP/rendered.yaml"
+          grep -q "$WEB_IMAGE_REPO@$WEB_DIGEST" "$RUNNER_TEMP/rendered.yaml"
+
+      - name: Record current revisions (rollback targets)
+        run: |
+          set -euo pipefail
+          for d in ekc-api ekc-web ekc-ingestion-worker ekc-outbox-relay; do
+            rev=$(kubectl -n ekc get deploy "$d" -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}' 2>/dev/null || true)
+            echo "$d=${rev:-none}" | tee -a "$RUNNER_TEMP/revisions.txt"
+          done
+
+      - name: Stage 1 - namespace, config, policies (everything except workloads and jobs)
+        run: |
+          kubectl apply -f "$RUNNER_TEMP/rendered.yaml" \
+            --selector 'app.kubernetes.io/component notin (api,web,worker,job)'
+
+      - name: Stage 2 - migrations and topics (must finish before new code runs)
+        run: |
+          set -euo pipefail
+          # A Job's pod template is immutable: remove the previous run first.
+          kubectl -n ekc delete job ekc-migrate ekc-topics-init --ignore-not-found --wait=true
+          kubectl apply -f "$RUNNER_TEMP/rendered.yaml" --selector 'app.kubernetes.io/component=job'
+          kubectl -n ekc wait --for=condition=complete job/ekc-migrate job/ekc-topics-init --timeout=900s \
+            || { kubectl -n ekc logs job/ekc-migrate --tail=100 || true; exit 1; }
+
+      - name: Stage 3 - workloads and rollout
+        run: |
+          set -euo pipefail
+          touch "$RUNNER_TEMP/rollout-started"   # the rollback step only acts after this point
+          kubectl apply -f "$RUNNER_TEMP/rendered.yaml" --selector 'app.kubernetes.io/component in (api,web,worker)'
+          for d in ekc-api ekc-web ekc-ingestion-worker ekc-outbox-relay; do
+            kubectl -n ekc annotate deploy "$d" kubernetes.io/change-cause="run ${{ github.run_id }}: api $DIGEST web $WEB_DIGEST" --overwrite
+          done
+          for d in ekc-api ekc-web ekc-ingestion-worker ekc-outbox-relay; do
+            kubectl -n ekc rollout status "deploy/$d" --timeout=600s
+          done
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - name: Smoke test the public endpoint
+        env:
+          HOST: ${{ vars.EKC_HOST }}
+        run: |
+          set -euo pipefail
+          flag=""
+          if [ "$ENVIRONMENT" = "production" ]; then flag="--production"; fi
+          # The smoke test needs only httpx; --no-project avoids installing the application.
+          PYTHONPATH=. uv run --no-project --python 3.12 --with "httpx>=0.27" python -m scripts.smoke_test --base-url "https://$HOST" $flag
+
+      - name: Roll back on failure
+        if: failure()
+        run: |
+          set +e
+          if [ ! -f "$RUNNER_TEMP/rollout-started" ]; then
+            # Failed before any workload changed (config/migration stage): undoing would revert
+            # an unrelated earlier release, so do nothing.
+            echo "::warning::failed before the rollout started; no workload to roll back"
+            exit 0
+          fi
+          echo "::warning::deployment failed, rolling back"
+          for d in ekc-api ekc-web ekc-ingestion-worker ekc-outbox-relay; do
+            if grep -q "^$d=none" "$RUNNER_TEMP/revisions.txt" 2>/dev/null; then
+              echo "$d had no previous revision; nothing to roll back to"
+              continue
+            fi
+            kubectl -n ekc rollout undo "deploy/$d"
+            kubectl -n ekc rollout status "deploy/$d" --timeout=300s
+          done
+          # NOTE: database migrations are NOT rolled back automatically. They must be written
+          # backward compatible (expand/contract); see docs/deployment/CICD.md.

@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ekc-api
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # /metrics is for in-cluster Prometheus only; never route it publicly.
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location = /metrics { return 404; }
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [ekc.example.invalid]
+      secretName: ekc-api-tls
+  rules:
+    - host: ekc.example.invalid
+      http:
+        paths:
+          # Longest prefix wins: /api -> the API, everything else -> the web app.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: {name: ekc-api, port: {name: http}}
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: ekc-web, port: {name: http}}

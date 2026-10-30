@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ekc
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: enterprise-knowledge-copilot
+    includeSelectors: false
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - quota.yaml
+  - configmap.yaml
+  - api.yaml
+  - web.yaml
+  - workers.yaml
+  - jobs.yaml
+  - networkpolicy.yaml
+  - ingress.yaml
+  - monitoring.yaml
+  - prometheusrule.yaml
+images:
+  - name: ekc
+    newName: ghcr.io/REPLACE_ME_OWNER/ekc
+    newTag: REPLACE_ME_TAG
+  - name: ekc-web
+    newName: ghcr.io/REPLACE_ME_OWNER/ekc-web
+    newTag: REPLACE_ME_TAG

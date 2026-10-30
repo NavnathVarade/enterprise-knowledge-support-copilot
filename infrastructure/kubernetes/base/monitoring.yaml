@@ -1,0 +1,33 @@
+# Requires the Prometheus Operator CRDs. /metrics is bearer-token protected
+# (OTEL_METRICS_BEARER_TOKEN, key `metrics-token` in Secret ekc-metrics-token).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ekc-api
+  labels: {release: prometheus}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ekc-api}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials: {name: ekc-metrics-token, key: metrics-token}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ekc-workers
+  labels: {release: prometheus}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/component: worker}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials: {name: ekc-metrics-token, key: metrics-token}

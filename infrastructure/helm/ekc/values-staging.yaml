@@ -1,0 +1,4 @@
+environment: staging
+api:
+  autoscaling: {minReplicas: 2, maxReplicas: 4, targetCPUUtilization: 70}
+  pdb: {minAvailable: 1}
