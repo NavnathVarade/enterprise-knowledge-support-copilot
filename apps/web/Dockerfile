@@ -2,7 +2,7 @@
 # Build:  docker build -t ekc-web apps/web   (context = apps/web)
 # Base images are referenced by tag; CI should pass scanned digests.
 
-FROM node:22.11-alpine3.20 AS build
+FROM node:24.1-alpine3.20 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
