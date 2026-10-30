@@ -10,7 +10,7 @@ COPY tsconfig.json vite.config.ts index.html ./
 COPY src ./src
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.27.2-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine AS runtime
 ARG VERSION=dev
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.title="ekc-web" \
