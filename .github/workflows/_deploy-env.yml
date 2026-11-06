@@ -42,7 +42,7 @@ jobs:
       DIGEST: ${{ inputs.digest }}
       WEB_DIGEST: ${{ inputs.web_digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
@@ -55,7 +55,7 @@ jobs:
           case "$ENVIRONMENT" in staging|production) ;; *) echo "bad environment"; exit 1 ;; esac
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.7.0
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Verify both images were signed by this repository's CI on main
         run: |
@@ -67,7 +67,7 @@ jobs:
           done
 
       - name: Configure AWS credentials (OIDC, short-lived)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -140,7 +140,7 @@ jobs:
             kubectl -n ekc rollout status "deploy/$d" --timeout=600s
           done
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "0.11.32"
       - name: Smoke test the public endpoint
